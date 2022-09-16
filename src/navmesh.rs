@@ -3,7 +3,6 @@ use bevy::prelude::*;
 use bevy::render::mesh::Indices;
 use bevy::render::render_resource::PrimitiveTopology;
 use bevy::render::settings::{WgpuFeatures, WgpuSettings};
-use bevy_polyline::prelude::*;
 use bevy_polyline::PolylinePlugin;
 use polyanya::Mesh as PAMesh;
 
@@ -16,7 +15,6 @@ impl Plugin for NavMeshPlugin {
             ..default()
         })
         .add_plugin(WireframePlugin)
-        .add_plugin(PolylinePlugin)
         .add_startup_system(setup_navmesh)
         .add_startup_system(setup_navmesh_graphics)
         .add_system(update_mesh_visualization);
@@ -24,13 +22,13 @@ impl Plugin for NavMeshPlugin {
 }
 
 #[derive(Component)]
-struct NavMesh {
-    mesh: PAMesh,
+pub struct NavMesh {
+    pub navmesh: PAMesh,
 }
 
 fn setup_navmesh(mut commands: Commands) {
-    let mesh = PAMesh::from_file("assets/meshes/polyanya/arena-merged.mesh".into());
-    commands.spawn().insert(NavMesh { mesh });
+    let navmesh = PAMesh::from_file("assets/meshes/polyanya/arena-merged.mesh".into());
+    commands.spawn().insert(NavMesh { navmesh });
 }
 
 struct NavMeshMaterials {
@@ -56,23 +54,44 @@ fn update_mesh_visualization(
         new_mesh.insert_attribute(
             Mesh::ATTRIBUTE_POSITION,
             navmesh
-                .mesh
+                .navmesh
                 .vertices
                 .iter()
                 .map(|v| [v.coords.x, 0.0, v.coords.y])
                 .collect::<Vec<[f32; 3]>>(),
         );
+        // FIXME: polyanya has polygons, but bevy mesh is waiting for triangles, I should probably triangulate each one ?
+
         new_mesh.set_indices(Some(Indices::U32(
             navmesh
-                .mesh
+                .navmesh
                 .polygons
                 .iter()
-                .flat_map(|p| p.vertices.iter().map(|v| *v as u32))
+                .flat_map(|p| {
+                    // Convex triangulation.
+                    // thanks to https://www.gamedev.net/articles/programming/graphics/polygon-triangulation-r3334/
+                    // for pseudocode
+                    let mut triangles = vec![];
+                    let mut index = 0;
+                    let p0 = p.vertices[index];
+                    index += 1;
+                    let mut p_helper = p.vertices[index];
+                    index += 1;
+
+                    while index < p.vertices.len() {
+                        let p_temp = p.vertices[index];
+                        index += 1;
+                        triangles.push([p0, p_temp, p_helper]);
+                        p_helper = p_temp;
+                    }
+
+                    triangles.into_iter().flatten().map(|v| v as u32)
+                })
                 .collect(),
         )));
         new_mesh.insert_attribute(
             Mesh::ATTRIBUTE_NORMAL,
-            (0..navmesh.mesh.vertices.len())
+            (0..navmesh.navmesh.vertices.len())
                 .into_iter()
                 .map(|_| [0.0, 1.0, 0.0])
                 .collect::<Vec<[f32; 3]>>(),
@@ -81,7 +100,7 @@ fn update_mesh_visualization(
         new_mesh.insert_attribute(
             Mesh::ATTRIBUTE_UV_0,
             navmesh
-                .mesh
+                .navmesh
                 .vertices
                 .iter()
                 .map(|v| [v.coords.x, v.coords.y])

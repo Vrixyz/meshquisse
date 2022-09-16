@@ -1,7 +1,8 @@
 mod navmesh;
 
-use bevy::prelude::*;
+use bevy::{math::Vec3Swizzles, prelude::*};
 
+use bevy_polyline::prelude::*;
 use bevy_rapier3d::prelude::*;
 use navmesh::NavMeshPlugin;
 
@@ -14,12 +15,15 @@ fn main() {
         )))
         .insert_resource(Msaa::default())
         .add_plugins(DefaultPlugins)
+        .add_plugin(PolylinePlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(RapierDebugRenderPlugin::default())
         .add_plugin(NavMeshPlugin)
         .add_startup_system(setup_graphics)
         .add_startup_system(setup_physics)
         .add_system(cast_ray)
+        .add_startup_system(setup_path_display)
+        .add_system(update_path_display)
         .run();
 }
 
@@ -50,13 +54,24 @@ pub fn setup_physics(mut commands: Commands) {
 fn cast_ray(
     mut commands: Commands,
     windows: Res<Windows>,
+    navmesh: Query<&navmesh::NavMesh>,
+    mut path_to_display: ResMut<PathToDisplay>,
     buttons: Res<Input<MouseButton>>,
     rapier_context: Res<RapierContext>,
     cameras: Query<(&Camera, &GlobalTransform)>,
 ) {
+    if buttons.just_pressed(MouseButton::Right) {
+        path_to_display.steps.clear();
+        return;
+    }
     if !buttons.just_pressed(MouseButton::Left) {
         return;
     }
+    let navmesh = navmesh.iter().next();
+    if navmesh.is_none() {
+        return;
+    }
+    let navmesh = navmesh.unwrap();
     // We will color in read the colliders hovered by the mouse.
     for (camera, camera_transform) in cameras.iter() {
         // First, compute a ray from the mouse position.
@@ -65,15 +80,16 @@ fn cast_ray(
 
         // Then cast the ray.
         let hit = rapier_context.cast_ray(ray_pos, ray_dir, f32::MAX, true, QueryFilter::new());
-
         if let Some((_entity, toi)) = hit {
-            let cube_size = 0.5f32;
-            let mut position = ray_pos + ray_dir * toi;
-            position.y += cube_size;
-            commands
-                .spawn_bundle(TransformBundle::from(Transform::from_translation(position)))
-                .insert(RigidBody::Dynamic)
-                .insert(Collider::cuboid(cube_size, cube_size, cube_size));
+            let position = ray_pos + ray_dir * toi;
+            if let Some(last_pos) = path_to_display.steps.last() {
+                let path = navmesh.navmesh.path(*last_pos, position.xz());
+                for p in path.path {
+                    path_to_display.steps.push(p);
+                }
+            } else {
+                path_to_display.steps.push(position.xz());
+            }
         }
     }
 }
@@ -98,4 +114,57 @@ fn ray_from_mouse_position(
     let far = far.truncate() / far.w;
     let dir: Vec3 = far - near;
     (near, dir)
+}
+
+#[derive(Default)]
+struct PolylineAssets {
+    polyline: Handle<Polyline>,
+}
+#[derive(Default)]
+struct PathToDisplay {
+    steps: Vec<Vec2>,
+}
+
+fn setup_path_display(
+    mut commands: Commands,
+    mut polyline_materials: ResMut<Assets<PolylineMaterial>>,
+    mut polylines: ResMut<Assets<Polyline>>,
+) {
+    commands.insert_resource(PathToDisplay::default());
+
+    let polyline = polylines.add(Polyline {
+        vertices: vec![-Vec3::ONE, Vec3::ONE],
+        ..Default::default()
+    });
+    commands.insert_resource(PolylineAssets {
+        polyline: polyline.clone(),
+    });
+    commands.spawn_bundle(PolylineBundle {
+        polyline: polyline,
+        material: polyline_materials.add(PolylineMaterial {
+            width: 3.0,
+            color: Color::RED,
+            perspective: true,
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+}
+
+fn update_path_display(
+    path_to_display: Res<PathToDisplay>,
+    polyline: Res<PolylineAssets>,
+    mut polylines: ResMut<Assets<Polyline>>,
+) {
+    if !path_to_display.is_changed() {
+        return;
+    }
+    if let Some(polyline_to_change) = polylines.get_mut(&polyline.polyline) {
+        polyline_to_change.vertices = path_to_display
+            .steps
+            .iter()
+            .map(|s| Vec3::new(s.x, 0f32, s.y))
+            .collect();
+        dbg!(&polyline_to_change.vertices);
+    }
 }
