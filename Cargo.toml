@@ -1,0 +1,19 @@
+[package]
+name = "meshquisse"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+polyanya = {version = "*", git = "https://github.com/vleue/polyanya.git"}
+bevy_rapier3d = "0.16"
+bevy = "0.8"
+bevy_polyline = "0.3"
+
+[profile.dev]
+opt-level = 1
+incremental = true
+
+[profile.dev.package."*"]
+opt-level = 3
