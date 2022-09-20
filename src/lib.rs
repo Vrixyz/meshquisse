@@ -1,4 +1,5 @@
-mod navmesh;
+pub mod navmesh;
+pub mod tools;
 
 use bevy::{math::Vec3Swizzles, prelude::*};
 
@@ -6,9 +7,11 @@ use bevy_polyline::prelude::*;
 use bevy_rapier3d::prelude::*;
 use navmesh::NavMeshPlugin;
 
-fn main() {
-    App::new()
-        .insert_resource(ClearColor(Color::rgb(
+pub struct MeshquissePlugin;
+
+impl Plugin for MeshquissePlugin {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(ClearColor(Color::rgb(
             0xF9 as f32 / 255.0,
             0xF9 as f32 / 255.0,
             0xFF as f32 / 255.0,
@@ -23,8 +26,8 @@ fn main() {
         .add_startup_system(setup_physics)
         .add_system(cast_ray)
         .add_startup_system(setup_path_display)
-        .add_system(update_path_display)
-        .run();
+        .add_system(update_path_display);
+    }
 }
 
 fn setup_graphics(mut commands: Commands) {
@@ -32,6 +35,30 @@ fn setup_graphics(mut commands: Commands) {
         transform: Transform::from_xyz(-30.0, 30.0, 100.0)
             .looking_at(Vec3::new(0.0, 10.0, 0.0), Vec3::Y),
         ..Default::default()
+    });
+
+    const HALF_SIZE: f32 = 100.0;
+    commands.spawn_bundle(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            shadow_projection: OrthographicProjection {
+                left: -HALF_SIZE,
+                right: HALF_SIZE,
+                bottom: -HALF_SIZE,
+                top: HALF_SIZE,
+                near: -10.0 * HALF_SIZE,
+                far: 10.0 * HALF_SIZE,
+                ..default()
+            },
+            shadows_enabled: true,
+            ..default()
+        },
+        transform: Transform::from_rotation(Quat::from_euler(
+            EulerRot::ZYX,
+            0.0,
+            3f32 * std::f32::consts::PI / 5.0,
+            -std::f32::consts::PI / 4.,
+        )),
+        ..default()
     });
 }
 
@@ -53,9 +80,9 @@ pub fn setup_physics(mut commands: Commands) {
 
 fn cast_ray(
     mut commands: Commands,
+    mut path_to_display: ResMut<PathToDisplay>,
     windows: Res<Windows>,
     navmesh: Query<&navmesh::NavMesh>,
-    mut path_to_display: ResMut<PathToDisplay>,
     buttons: Res<Input<MouseButton>>,
     rapier_context: Res<RapierContext>,
     cameras: Query<(&Camera, &GlobalTransform)>,
@@ -83,6 +110,11 @@ fn cast_ray(
         if let Some((_entity, toi)) = hit {
             let position = ray_pos + ray_dir * toi;
             if let Some(last_pos) = path_to_display.steps.last() {
+                let new_point = position.xz();
+                if !navmesh.navmesh.point_in_mesh(new_point) {
+                    info!("point not in mesh");
+                    continue;
+                }
                 let path = navmesh.navmesh.path(*last_pos, position.xz());
                 for p in path.path {
                     path_to_display.steps.push(p);
