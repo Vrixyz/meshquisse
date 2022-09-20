@@ -1,10 +1,12 @@
+pub mod interact_mesh;
 pub mod navmesh;
 pub mod tools;
 
-use bevy::{math::Vec3Swizzles, prelude::*};
+use bevy::{input::keyboard::KeyboardInput, math::Vec3Swizzles, prelude::*};
 
 use bevy_polyline::prelude::*;
 use bevy_rapier3d::prelude::*;
+use interact_mesh::InteractMeshPlugin;
 use navmesh::NavMeshPlugin;
 
 pub struct MeshquissePlugin;
@@ -21,22 +23,27 @@ impl Plugin for MeshquissePlugin {
         .add_plugin(PolylinePlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(RapierDebugRenderPlugin::default())
+        .add_plugin(InteractMeshPlugin)
         .add_plugin(NavMeshPlugin)
         .add_startup_system(setup_graphics)
         .add_startup_system(setup_physics)
-        .add_system(cast_ray)
+        .add_system(cast_ray_pathfinding)
         .add_startup_system(setup_path_display)
         .add_system(update_path_display);
     }
 }
 
-fn setup_graphics(mut commands: Commands) {
-    commands.spawn_bundle(Camera3dBundle {
-        transform: Transform::from_xyz(-30.0, 30.0, 100.0)
-            .looking_at(Vec3::new(0.0, 10.0, 0.0), Vec3::Y),
-        ..Default::default()
-    });
+#[derive(Component)]
+pub struct MainCamera;
 
+fn setup_graphics(mut commands: Commands) {
+    commands
+        .spawn_bundle(Camera3dBundle {
+            transform: Transform::from_xyz(-30.0, 30.0, 100.0)
+                .looking_at(Vec3::new(0.0, 10.0, 0.0), Vec3::Y),
+            ..Default::default()
+        })
+        .insert(MainCamera);
     const HALF_SIZE: f32 = 100.0;
     commands.spawn_bundle(DirectionalLightBundle {
         directional_light: DirectionalLight {
@@ -78,15 +85,19 @@ pub fn setup_physics(mut commands: Commands) {
         .insert(Collider::cuboid(ground_size, ground_height, ground_size));
 }
 
-fn cast_ray(
+fn cast_ray_pathfinding(
     mut commands: Commands,
     mut path_to_display: ResMut<PathToDisplay>,
     windows: Res<Windows>,
     navmesh: Query<&navmesh::NavMesh>,
     buttons: Res<Input<MouseButton>>,
+    keys: Res<Input<KeyCode>>,
     rapier_context: Res<RapierContext>,
     cameras: Query<(&Camera, &GlobalTransform)>,
 ) {
+    if keys.any_pressed([KeyCode::LControl, KeyCode::RControl]) {
+        return;
+    }
     if buttons.just_pressed(MouseButton::Right) {
         path_to_display.steps.clear();
         return;
@@ -99,8 +110,29 @@ fn cast_ray(
         return;
     }
     let navmesh = navmesh.unwrap();
-    // We will color in read the colliders hovered by the mouse.
-    for (camera, camera_transform) in cameras.iter() {
+    if let Some(position) = screen_physics_ray_cast(cameras, windows, rapier_context) {
+        if let Some(last_pos) = path_to_display.steps.last() {
+            let new_point = position.xz();
+            if !navmesh.navmesh.point_in_mesh(new_point) {
+                info!("point not in mesh");
+                return;
+            }
+            let path = navmesh.navmesh.path(*last_pos, position.xz());
+            for p in path.path {
+                path_to_display.steps.push(p);
+            }
+        } else {
+            path_to_display.steps.push(position.xz());
+        }
+    }
+}
+
+fn screen_physics_ray_cast(
+    cameras: Query<(&Camera, &GlobalTransform)>,
+    windows: Res<Windows>,
+    rapier_context: Res<RapierContext>,
+) -> Option<Vec3> {
+    if let Some((camera, camera_transform)) = cameras.iter().next() {
         // First, compute a ray from the mouse position.
         let (ray_pos, ray_dir) =
             ray_from_mouse_position(windows.get_primary().unwrap(), camera, camera_transform);
@@ -108,22 +140,10 @@ fn cast_ray(
         // Then cast the ray.
         let hit = rapier_context.cast_ray(ray_pos, ray_dir, f32::MAX, true, QueryFilter::new());
         if let Some((_entity, toi)) = hit {
-            let position = ray_pos + ray_dir * toi;
-            if let Some(last_pos) = path_to_display.steps.last() {
-                let new_point = position.xz();
-                if !navmesh.navmesh.point_in_mesh(new_point) {
-                    info!("point not in mesh");
-                    continue;
-                }
-                let path = navmesh.navmesh.path(*last_pos, position.xz());
-                for p in path.path {
-                    path_to_display.steps.push(p);
-                }
-            } else {
-                path_to_display.steps.push(position.xz());
-            }
+            return Some(ray_pos + ray_dir * toi);
         }
     }
+    None
 }
 
 // Credit to @doomy on discord.

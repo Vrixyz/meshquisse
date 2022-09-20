@@ -1,6 +1,12 @@
 use bevy::prelude::{Vec2, Vec3};
 use polyanya::{Mesh as PAMesh, Polygon, Vertex};
 
+#[derive(Debug, PartialEq)]
+pub struct TriangleMesh {
+    pub indices: Vec<u32>,
+    pub positions: Vec<Vec2>,
+}
+
 /// Triangulates convex polygons, complexity is O(n)
 pub fn triangulate(navmesh: &PAMesh) -> Vec<u32> {
     navmesh
@@ -13,7 +19,7 @@ pub fn triangulate(navmesh: &PAMesh) -> Vec<u32> {
         .collect()
 }
 
-pub fn create_grid_trimesh(width: u32, height: u32, spacing: f32) -> (Vec<u32>, Vec<Vec2>) {
+pub fn create_grid_trimesh(width: u32, height: u32, spacing: f32) -> TriangleMesh {
     let to_index = |x: u32, y: u32| y * height + x;
     let positions: Vec<Vec2> = (0..height)
         .flat_map(|y| {
@@ -40,15 +46,15 @@ pub fn create_grid_trimesh(width: u32, height: u32, spacing: f32) -> (Vec<u32>, 
             })
         })
         .collect();
-    (indices, positions)
+    TriangleMesh { indices, positions }
 }
 
-/// Returns an raw unbaked polyanya::Mesh, without any complex transformations,
+/// Returns an polyanya::Mesh, without any complex transformations,
 /// polygons are kept as triangles.
 /// (not implemented) For a more optimal solution, consider calling trimesh_to_convex_polygon_mesh()
-pub fn mesh_from_trimesh(triangles_mesh: (Vec<u32>, Vec<Vec2>)) -> PAMesh {
+pub fn navmesh_from_trimesh(triangles_mesh: &TriangleMesh) -> PAMesh {
     let mut vertices: Vec<Vertex> = triangles_mesh
-        .1
+        .positions
         .iter()
         .map(|position| Vertex {
             coords: *position,
@@ -56,13 +62,13 @@ pub fn mesh_from_trimesh(triangles_mesh: (Vec<u32>, Vec<Vec2>)) -> PAMesh {
             polygons: vec![],
         })
         .collect();
-    let polygons: Vec<_> = (0..triangles_mesh.0.len() / 3)
+    let polygons: Vec<_> = (0..triangles_mesh.indices.len() / 3)
         .map(|i| {
             let i = i * 3;
             let indexes = vec![
-                triangles_mesh.0[i] as usize,
-                triangles_mesh.0[i + 1] as usize,
-                triangles_mesh.0[i + 2] as usize,
+                triangles_mesh.indices[i] as usize,
+                triangles_mesh.indices[i + 1] as usize,
+                triangles_mesh.indices[i + 2] as usize,
             ];
             Polygon::new(indexes, false)
         })
@@ -81,18 +87,53 @@ pub fn mesh_from_trimesh(triangles_mesh: (Vec<u32>, Vec<Vec2>)) -> PAMesh {
     PAMesh::new(vertices, polygons)
 }
 
+/// Returns an bevy::Mesh with triangles
+pub fn bevymesh_from_trimesh(triangles_mesh: &TriangleMesh) -> bevy::prelude::Mesh {
+    use bevy::render::{mesh::Indices, prelude::*, render_resource::PrimitiveTopology};
+
+    let mut new_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    new_mesh.insert_attribute(
+        Mesh::ATTRIBUTE_POSITION,
+        triangles_mesh
+            .positions
+            .iter()
+            .map(|v| [v.x, 0.0, v.y])
+            .collect::<Vec<[f32; 3]>>(),
+    );
+    new_mesh.set_indices(Some(Indices::U32(
+        triangles_mesh.indices.iter().rev().copied().collect(),
+    )));
+    new_mesh.insert_attribute(
+        Mesh::ATTRIBUTE_NORMAL,
+        (0..triangles_mesh.positions.len())
+            .into_iter()
+            .map(|_| [0.0, 1.0, 0.0])
+            .collect::<Vec<[f32; 3]>>(),
+    );
+
+    new_mesh.insert_attribute(
+        Mesh::ATTRIBUTE_UV_0,
+        triangles_mesh
+            .positions
+            .iter()
+            .map(|v| [v.x, v.y])
+            .collect::<Vec<[f32; 2]>>(),
+    );
+    new_mesh
+}
+
 mod test {
     use bevy::prelude::Vec2;
     use polyanya::{Polygon, Vertex};
 
-    use super::{create_grid_trimesh, mesh_from_trimesh};
+    use super::{create_grid_trimesh, navmesh_from_trimesh, TriangleMesh};
 
-    fn trimesh_3_3_10() -> (Vec<u32>, Vec<Vec2>) {
-        (
-            vec![
+    fn trimesh_3_3_10() -> TriangleMesh {
+        TriangleMesh {
+            indices: vec![
                 0, 3, 1, 4, 1, 3, 1, 4, 2, 5, 2, 4, 3, 6, 4, 7, 4, 6, 4, 7, 5, 8, 5, 7,
             ],
-            vec![
+            positions: vec![
                 Vec2 { x: 0.0, y: 0.0 },
                 Vec2 { x: 10.0, y: 0.0 },
                 Vec2 { x: 20.0, y: 0.0 },
@@ -103,7 +144,7 @@ mod test {
                 Vec2 { x: 10.0, y: 20. },
                 Vec2 { x: 20.0, y: 20. },
             ],
-        )
+        }
     }
 
     #[test]
@@ -114,7 +155,7 @@ mod test {
     #[test]
     fn test_navmesh_from_trimesh_3_3_10() {
         let trimesh = trimesh_3_3_10();
-        let navmesh = mesh_from_trimesh(trimesh);
+        let navmesh = navmesh_from_trimesh(&trimesh);
         assert_eq!(
             navmesh.vertices,
             vec![

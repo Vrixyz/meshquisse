@@ -10,6 +10,8 @@ polyanya = {version = "*", git = "https://github.com/vleue/polyanya.git"}
 bevy_rapier3d = "0.16"
 bevy = "0.8"
 bevy_polyline = "0.3"
+bevy_transform_gizmo = "*"
+bevy_mod_picking = "*"
 
 [profile.dev]
 opt-level = 1

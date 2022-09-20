@@ -2,7 +2,11 @@ use bevy::{
     prelude::*,
     render::{mesh::Indices, render_resource::PrimitiveTopology},
 };
-use meshquisse::{navmesh::NavMesh, *};
+use meshquisse::{
+    interact_mesh::{EditableMesh, ShowAndUpdateMesh, TriangleMeshData},
+    navmesh::NavMesh,
+    *,
+};
 use polyanya::Mesh as PAMesh;
 
 fn main() {
@@ -32,14 +36,19 @@ fn setup(
     });
 
     // NavMesh
-    let trimesh = tools::create_grid_trimesh(30, 30, 1f32);
+    let trimesh = tools::create_grid_trimesh(5, 5, 5f32);
     //dbg!(&trimesh);
 
     // Spawn the navmesh for meshquisse plugin
 
-    let mut navmesh = tools::mesh_from_trimesh(trimesh);
+    let mut navmesh = tools::navmesh_from_trimesh(&trimesh);
     navmesh.bake();
     //dbg!(&navmesh);
 
-    commands.spawn().insert(NavMesh { navmesh });
+    commands
+        .spawn()
+        .insert(NavMesh { navmesh })
+        .insert(TriangleMeshData(trimesh))
+        .insert(ShowAndUpdateMesh::default())
+        .insert(EditableMesh);
 }
