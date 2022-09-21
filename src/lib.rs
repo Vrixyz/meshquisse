@@ -217,6 +217,5 @@ fn update_path_display(
             .iter()
             .map(|s| Vec3::new(s.x, 0f32, s.y))
             .collect();
-        dbg!(&polyline_to_change.vertices);
     }
 }

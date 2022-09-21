@@ -1,16 +1,32 @@
-use bevy::prelude::*;
-use meshquisse::navmesh::*;
-use meshquisse::*;
-use polyanya::Mesh as PAMesh;
+use bevy::{
+    prelude::*,
+};
+use meshquisse::{
+    interact_mesh::{EditableMesh, ShowAndUpdateMesh, TriangleMeshData, UpdateNavMesh},
+    *,
+};
 
 fn main() {
-    App::new()
-        .add_plugin(MeshquissePlugin)
-        .add_startup_system(setup)
-        .run();
+    App::new().add_plugin(ToolPlugin).run();
+}
+
+struct ToolPlugin;
+
+impl Plugin for ToolPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugin(MeshquissePlugin).add_startup_system(setup);
+    }
 }
 
 fn setup(mut commands: Commands) {
-    let navmesh = PAMesh::from_file("assets/meshes/polyanya/arena-merged.mesh".into());
-    commands.spawn().insert(NavMesh { navmesh });
+    // NavMesh
+    let trimesh = tools::create_grid_trimesh(3, 3, 10f32);
+
+    commands
+        .spawn()
+        //.insert(NavMesh { navmesh })
+        .insert(TriangleMeshData(trimesh))
+        .insert(ShowAndUpdateMesh::default())
+        .insert(UpdateNavMesh)
+        .insert(EditableMesh);
 }

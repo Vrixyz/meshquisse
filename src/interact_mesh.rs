@@ -3,8 +3,9 @@ use bevy_rapier3d::prelude::RapierContext;
 use bevy_transform_gizmo::TransformGizmoSystem;
 
 use crate::{
+    navmesh::NavMesh,
     screen_physics_ray_cast,
-    tools::{self, TriangleMesh},
+    tools::{self, bevymesh_from_trimesh, navmesh_from_trimesh, TriangleMesh},
     MainCamera,
 };
 
@@ -24,7 +25,9 @@ impl Plugin for InteractMeshPlugin {
             .add_system(spawn_vertices_selectable)
             .add_system(update_vertices_position)
             .add_system(spawn_visual_mesh)
-            .add_system(update_visual_mesh);
+            .add_system(update_visual_mesh)
+            .add_system(spawn_navmesh)
+            .add_system(update_navmesh);
     }
 }
 
@@ -32,11 +35,20 @@ impl Plugin for InteractMeshPlugin {
 #[derive(Component)]
 pub struct TriangleMeshData(pub TriangleMesh);
 
-/// will spawn a bevy mesh, and update its visual if its `TriangleMeshData` changes.
+/// Only useful if entity has a `TriangleMeshData`.
+/// Will insert a `navmesh::NavMesh` as component,
+/// and update its visual when its `TriangleMeshData` changes.
+#[derive(Component)]
+pub struct UpdateNavMesh;
+
+/// Only useful if entity has a `TriangleMeshData`.
+/// Will insert a bevy mesh,
+/// and update its visual when its `TriangleMeshData` changes.
 #[derive(Component, Default)]
 pub struct ShowAndUpdateMesh(pub Option<Handle<Mesh>>);
 
-/// will spawn children selectable handles via bevy_transform_gizmo.
+/// Only useful if entity has a `TriangleMeshData`.
+/// Will spawn children selectable handles via bevy_transform_gizmo.
 /// When these gizmos are updated, they reach for their parent `EditableMesh`
 /// and update its mesh.
 #[derive(Component)]
@@ -84,7 +96,7 @@ fn spawn_visual_mesh(
 ) {
     for (e, mesh_data, mut show_update_mesh) in q_new_shown_meshes.iter_mut() {
         let mesh_handle = meshes.add(tools::bevymesh_from_trimesh(&mesh_data.0));
-        (*show_update_mesh).0 = Some(dbg!(mesh_handle.clone()));
+        (*show_update_mesh).0 = Some(mesh_handle.clone());
         commands.entity(e).insert_bundle(PbrBundle {
             mesh: mesh_handle,
             material: assets.visual_mesh_mat.clone(),
@@ -92,6 +104,7 @@ fn spawn_visual_mesh(
         });
     }
 }
+
 fn update_visual_mesh(
     mut meshes: ResMut<Assets<Mesh>>,
     q_updated_meshes: Query<(&ShowAndUpdateMesh, &TriangleMeshData), Changed<TriangleMeshData>>,
@@ -153,5 +166,26 @@ fn update_vertices_position(
         if let Ok(mut mesh_to_edit) = q_parent_mesh_data.get_mut(parent.get()) {
             mesh_to_edit.0.positions[vertex.vertex_id as usize] = transform.translation.xz();
         }
+    }
+}
+
+fn spawn_navmesh(
+    mut commands: Commands,
+    mut q_new_shown_meshes: Query<(Entity, &TriangleMeshData), Added<UpdateNavMesh>>,
+) {
+    for (e, mesh_data) in q_new_shown_meshes.iter_mut() {
+        let navmesh = navmesh_from_trimesh(&mesh_data.0);
+        commands.entity(e).insert(NavMesh { navmesh });
+    }
+}
+
+fn update_navmesh(
+    mut q_updated_meshes: Query<
+        (&mut NavMesh, &TriangleMeshData),
+        (Changed<TriangleMeshData>, With<UpdateNavMesh>),
+    >,
+) {
+    for (mut update, mesh_data) in q_updated_meshes.iter_mut() {
+        update.navmesh = navmesh_from_trimesh(&mesh_data.0);
     }
 }
