@@ -1,4 +1,5 @@
 pub mod interact_mesh;
+pub mod meshmerger;
 pub mod navmesh;
 pub mod tools;
 
