@@ -41,7 +41,6 @@ pub struct Vertex {
 
 #[derive(Default, Debug, Clone)]
 pub struct Polygon {
-    num_vertices: u32,
     num_traversable: u32,
     area: f32,
     vertices: Vec<u32>,
@@ -88,6 +87,15 @@ fn getc<'a, T: Copy>(vec: &'a Vec<T>, index: u32) -> T {
 fn getc_mut<'a, T>(vec: &'a mut Vec<T>, index: u32) -> &'a mut T {
     let len = vec.len();
     &mut vec[index as usize % len]
+}
+
+pub struct MergeInfo {
+    /// index of the polygon_from, from the root polygons
+    pub polygon_from: i32,
+    /// index of the start vertex within the polygon we want to merge into
+    pub to_index: u32,
+    /// index of the same vertex but from the polygon we merge from.
+    pub from_index: u32,
 }
 
 #[derive(Debug)]
@@ -144,7 +152,7 @@ impl MeshMerger {
         let mut mesh_polygons = vec![Polygon::default(); p_nb_polygons];
         let polygon_unions = UnionFind::new(p_nb_polygons as i32);
 
-        for i in 0..v_nb_vertices {
+        for mut vertex in mesh_vertices.iter_mut() {
             let line: String = reader.next().unwrap().unwrap();
             let mut values = line.split(' ');
             // Step: Read vertex coordinates
@@ -155,7 +163,6 @@ impl MeshMerger {
             if neigbours < 2 {
                 panic!("vertex with less than 2 neigbours");
             }
-            let mut vertex = &mut mesh_vertices[i];
             vertex.p = Vec2::new(x, y);
             vertex.num_polygons = neigbours;
             let neighbour_values: Vec<i32> = values.map(|v| v.parse().unwrap()).collect();
@@ -163,9 +170,7 @@ impl MeshMerger {
                 panic!("read more neighbours than defined.");
             }
             // Guaranteed to have 2 or more.
-            // TODO: those lines should probably be abstracted away by creating a circular linked list with a given array of values.
-            let mut cur_node = 0;
-            for (j, polygon_index) in neighbour_values.into_iter().enumerate() {
+            for polygon_index in neighbour_values.into_iter() {
                 if polygon_index >= p_nb_polygons as i32 {
                     panic!(
                         "Got a polygon index of {polygon_index} when nb_polygon is {p_nb_polygons}"
@@ -174,8 +179,7 @@ impl MeshMerger {
                 vertex.polygons.push(polygon_index);
             }
         }
-        for i in 0..p_nb_polygons {
-            let mut polygon = &mut mesh_polygons[i];
+        for mut polygon in mesh_polygons.iter_mut() {
             let line: String = reader.next().unwrap().unwrap();
             let mut values = line.split(' ');
 
@@ -184,9 +188,7 @@ impl MeshMerger {
             if n < 3 {
                 panic!("Invalid number of vertices in polygon (Got {n}).");
             }
-            polygon.num_vertices = n;
-            let mut cur_node = 0;
-            for j in 0..n {
+            for _ in 0..n {
                 let vertex_index: u32 = values.next().unwrap().parse().unwrap();
                 if vertex_index >= v_nb_vertices as u32 {
                     panic!("Invalid vertex index when getting polygon");
@@ -196,7 +198,7 @@ impl MeshMerger {
 
             // Step: Read polygon's neighbour polygons
             polygon.num_traversable = 0;
-            for j in 0..n {
+            for _ in 0..n {
                 let polygon_index: i32 = values.next().unwrap().parse().unwrap();
                 if polygon_index >= p_nb_polygons as i32 {
                     panic!("Invalid polygon index when getting polygon");
@@ -228,11 +230,13 @@ impl MeshMerger {
     /// Try to merge `self.mesh_polygons[polygon_to_index]` with `self.mesh_polygons].polygon[edge_index]`
     /// through edge `self.mesh_polygons[polygon_to_index].vertices[edge_index..edge_index + 1]`.
     ///
-    /// Return false if `self.mesh_polygons[polygon_to_index]` is a merged polygon.
-    fn can_merge(&mut self, polygon_to_index: i32, edge_index: u32) -> bool {
+    /// Return None if `self.mesh_polygons[polygon_to_index]` is a merged polygon.
+    /// Return None if resulting polygon would be concave.
+    /// Return None if there's no neighbour polygon on that index.
+    fn can_merge(&mut self, polygon_to_index: i32, edge_index: u32) -> Option<MergeInfo> {
         let p = |index: u32| &self.mesh_polygons[index as usize];
         if self.polygon_unions.find(polygon_to_index) != polygon_to_index {
-            return false;
+            return None;
         }
         // The polygon we want to modify to be the merge result
         let polygon_to = &self.mesh_polygons[polygon_to_index as usize];
@@ -241,12 +245,12 @@ impl MeshMerger {
             .polygon_unions
             .find(getc(&polygon_to.polygons, edge_index) as i32);
         if merge_index == -1 {
-            return false;
+            return None;
         }
         // The polygon we want to merge from
         let polygon_from = p(merge_index as u32);
-        if polygon_from.num_vertices == 0 {
-            return false;
+        if polygon_from.vertices.len() == 0 {
+            return None;
         }
         // edge 1 in the "from"
         let to_vertice_1 = (edge_index, polygon_to.vertices[edge_index as usize]);
@@ -258,29 +262,35 @@ impl MeshMerger {
             .copied()
             .enumerate()
             .find(|v| v.1 == to_vertice_1.1);
-        if from_vertice_1.is_none() {
-            panic!("Wrong data: polygon to merge should share corresponding vertices");
-        }
+        debug_assert!(
+            from_vertice_1.is_some(),
+            "Wrong data: polygon to merge should share corresponding vertices"
+        );
         let from_vertice_1 = from_vertice_1.unwrap();
+        // PERF: optimisation possible
+        // FIXME: this calculation can occur after the first clockwise check.
         let from_vertice_2 = (
-            from_vertice_1.0 + polygon_from.vertices.len() - 1,
+            from_vertice_1.0 + &polygon_from.vertices.len() - 1,
             getc(
                 &polygon_from.vertices,
                 (from_vertice_1.0 + polygon_from.vertices.len() - 1) as u32,
             ),
         );
-        assert!(
+        debug_assert!(
             from_vertice_1.1 == to_vertice_1.1,
             "wrong first edge vertex correspondance"
         );
-        assert!(
+        debug_assert!(
             from_vertice_2.1 == to_vertice_2.1,
             "wrong second vertex correspondance"
         );
-        assert!(
+        debug_assert!(
             getc(&polygon_from.polygons, from_vertice_2.0 as u32) == polygon_to_index,
             "Neighbour from polygon does not match edge to."
         );
+
+        // PERF: optimisation possible
+        // FIXME: cw(a) can probable take value from `from_vertice_1.1`
 
         // The merge will insert vertices between 'from_vertice_1' and 'from_vertice_2'
         // between to_vertice_1 and to_vertice_2
@@ -296,7 +306,7 @@ impl MeshMerger {
             &self.mesh_vertices[from_vertice_1.1 as usize].p,
             &self.mesh_vertices[getc(&polygon_to.vertices, to_vertice_1.0 + 1) as usize].p,
         ) {
-            return false;
+            return None;
         }
         // check clockwiseness for (to_vertice_2 - 1, to_vertice_2, from_vertice_1 + 1)
         // If the new ones are clockwise, we must return false.
@@ -309,66 +319,62 @@ impl MeshMerger {
             &self.mesh_vertices[from_vertice_2.1 as usize].p,
             &self.mesh_vertices[getc(&polygon_from.vertices, to_vertice_2.0 + 1) as usize].p,
         ) {
-            return false;
+            return None;
         }
-        true
+        Some(MergeInfo {
+            to_index: to_vertice_1.0,
+            from_index: to_vertice_1.0,
+            polygon_from: merge_index,
+        })
     }
-    /*
-    fn merge(&mut self, x: i32, v: u32, p: u32) {
-        assert!(self.can_merge(x, v, p));
 
-        let polygon = &self.mesh_polygons[x as usize];
-        // Note that because of the way we're merging,
-        // the resulting polygon will NOT always have a valid ListNodePtr, so
-        // we need to set it ourself.
+    /// Assumes `can_merge` returns true
+    fn merge(&mut self, polygon_index: i32, merge_info: MergeInfo) {
+        let len_v_from = self.mesh_polygons[merge_info.polygon_from as usize]
+            .vertices
+            .len();
+        let len_v_to = self.mesh_polygons[polygon_index as usize].vertices.len();
 
-        let merge_index = self.polygon_unions.find(getc(&polygon.polygons, p + 2));
+        self.mesh_polygons[polygon_index as usize].vertices = self.mesh_polygons
+            [polygon_index as usize]
+            .vertices
+            .iter()
+            .cycle()
+            .skip((merge_info.to_index + 2) as usize)
+            .take(len_v_to - 2)
+            .chain(
+                self.mesh_polygons[merge_info.polygon_from as usize]
+                    .vertices
+                    .iter()
+                    .cycle()
+                    .skip((merge_info.from_index + len_v_from as u32 - 1) as usize)
+                    .take(len_v_from),
+            )
+            .copied()
+            .collect();
 
-        // FIXME: ? original implementation does a find again ? Seems unnecessary ?
-        let to_merge = &self.mesh_polygons[merge_index as usize];
+        self.mesh_polygons[polygon_index as usize].area +=
+            self.mesh_polygons[merge_info.polygon_from as usize].area;
 
-        let A = getc(&polygon.vertices, 1);
-        let B = getc(&polygon.vertices, 2);
+        self.mesh_polygons[polygon_index as usize].num_traversable +=
+            self.mesh_polygons[merge_info.polygon_from as usize].num_traversable;
+        self.mesh_polygons[polygon_index as usize].num_traversable -= 2;
 
-        let mut merge_end_v = 0;
-        let mut merge_end_p = 0;
-        let mut counter = 0;
-        while getc(&polygon.vertices, merge_end_v + 1) != B {
-            merge_end_v += 1;
-            merge_end_p += 1;
-            counter += 1;
-            assert!(counter <= to_merge.num_vertices);
-        }
-        // https://bitbucket.org/dharabor/pathfinding/src/ce5b02e9d051d5f17addb359429104c0293decaf/anyangle/polyanya/utils/meshmerger.cpp#lines-467
-        polygon.vertices.insert(, element)
-        let our_A_v_ptr = v + 1;
-
-        let our_A_p_ptr = p + 1;
-        let our_B_v_ptr = v + 2;
-        let our_B_p_ptr = p + 2;
-
-        let their_A_v_ptr = v + 2;
-        let their_A_p_ptr = p + 2;
-        let their_B_v_ptr = v + 1;
-        let their_B_p_ptr = p + 1;
-
-
-
-        our_A_v_ptr.get_mut(vD).next = their_A_v_ptr.get(vD).next;
-        our_A_p_ptr.get_mut(pD).next = their_A_p_ptr.get(pD).next;
-        their_B_v_ptr.get_mut(vD).next = our_B_v_ptr.get(vD).next;
-        their_B_p_ptr.get_mut(pD).next = our_B_p_ptr.get(pD).next;
-    }*/
+        self.polygon_unions
+            .merge(polygon_index, merge_info.polygon_from);
+    }
 
     pub fn my_merge(&mut self) {
         for i in 0..self.mesh_polygons.len() {
             let polygon = &self.mesh_polygons[i];
             for merge_index in 0..polygon.vertices.len() {
-                if self.can_merge(i as i32, merge_index as u32) {
+                if let Some(merge_info) = self.can_merge(i as i32, merge_index as u32) {
                     println!("can merge polygon {i} via merge_index: {merge_index}");
+                    self.merge(i as i32, merge_info);
                 }
             }
         }
+        dbg!(self);
     }
 }
 

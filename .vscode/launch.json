@@ -1,0 +1,101 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'meshquisse'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=meshquisse"
+                ],
+                "filter": {
+                    "name": "meshquisse",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'meshquisse'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=meshquisse",
+                    "--package=meshquisse"
+                ],
+                "filter": {
+                    "name": "meshquisse",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'meshquisse'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=meshquisse",
+                    "--package=meshquisse"
+                ],
+                "filter": {
+                    "name": "meshquisse",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'tools'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=tools",
+                    "--package=meshquisse"
+                ],
+                "filter": {
+                    "name": "tools",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'tools'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=tools",
+                    "--package=meshquisse"
+                ],
+                "filter": {
+                    "name": "tools",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
