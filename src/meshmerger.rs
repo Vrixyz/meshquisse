@@ -39,7 +39,7 @@ pub struct Vertex {
     pub polygons: Vec<i32>,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, PartialEq, Clone)]
 pub struct Polygon {
     num_traversable: u32,
     area: f32,
@@ -352,6 +352,23 @@ impl MeshMerger {
             )
             .copied()
             .collect();
+        self.mesh_polygons[polygon_index as usize].polygons = self.mesh_polygons
+            [polygon_index as usize]
+            .polygons
+            .iter()
+            .cycle()
+            .skip((merge_info.to_index + 1) as usize)
+            .take(len_v_to - 1)
+            .chain(
+                self.mesh_polygons[merge_info.polygon_from as usize]
+                    .polygons
+                    .iter()
+                    .cycle()
+                    .skip((merge_info.from_index + len_v_from as u32 - 1) as usize)
+                    .take(len_v_from - 1),
+            )
+            .copied()
+            .collect();
 
         self.mesh_polygons[polygon_index as usize].area +=
             self.mesh_polygons[merge_info.polygon_from as usize].area;
@@ -365,12 +382,27 @@ impl MeshMerger {
     }
 
     pub fn my_merge(&mut self) {
-        for i in 0..self.mesh_polygons.len() {
-            let polygon = &self.mesh_polygons[i];
-            for merge_index in 0..polygon.vertices.len() {
-                if let Some(merge_info) = self.can_merge(i as i32, merge_index as u32) {
-                    println!("can merge polygon {i} via merge_index: {merge_index}");
-                    self.merge(i as i32, merge_info);
+        // TODO: merge biggest areas first.
+        // 1: Sort polygons by area
+
+        let mut sorted_area_polygon_indexes: Vec<_> = self
+            .mesh_polygons
+            .iter()
+            .enumerate()
+            .map(|(index, polygon)| (index, polygon.area))
+            .collect();
+        sorted_area_polygon_indexes
+            .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        let mut check_new_merge = true;
+        while check_new_merge {
+            check_new_merge = false;
+            for (i, _) in sorted_area_polygon_indexes.iter() {
+                let polygon = &self.mesh_polygons[*i];
+                for merge_index in 0..polygon.vertices.len() {
+                    if let Some(merge_info) = self.can_merge(*i as i32, merge_index as u32) {
+                        self.merge(*i as i32, merge_info);
+                        check_new_merge = true;
+                    }
                 }
             }
         }
@@ -392,5 +424,14 @@ mod tests {
         let mut mesh_merger = MeshMerger::from_bytes(&buffer);
         dbg!(&mesh_merger);
         mesh_merger.my_merge();
+        assert_eq!(
+            mesh_merger.mesh_polygons[0],
+            crate::meshmerger::Polygon {
+                num_traversable: 0,
+                area: 4.5,
+                vertices: vec![0, 1, 2, 3,],
+                polygons: vec![-1, -1, -1, -1,],
+            }
+        )
     }
 }
