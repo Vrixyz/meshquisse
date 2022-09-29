@@ -1,0 +1,29 @@
+
+running 1 test
+test meshmerger::tests::merge_bigger_quad ... FAILED
+
+failures:
+
+---- meshmerger::tests::merge_bigger_quad stdout ----
+2, 0
+[src\meshmerger.rs:424] self.can_merge(*i as i32, merge_index as u32) = Ok(
+    MergeInfo {
+        polygon_from: 1,
+        to_index: 0,
+        from_index: 2,
+    },
+)
+2, 1
+[src\meshmerger.rs:424] self.can_merge(*i as i32, merge_index as u32) = Err(
+    NoNeighbour,
+)
+2, 2
+thread 'meshmerger::tests::merge_bigger_quad' panicked at 'Neighbour from polygon 2;2 does not match edge to. 3->0->0 != 2', src\meshmerger.rs:302:9
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    meshmerger::tests::merge_bigger_quad
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+

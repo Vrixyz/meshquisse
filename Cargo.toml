@@ -14,7 +14,7 @@ bevy_transform_gizmo = "*"
 bevy_mod_picking = "*"
 
 [profile.dev]
-opt-level = 1
+opt-level = 0
 incremental = true
 
 [profile.dev.package."*"]
