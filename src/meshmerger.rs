@@ -109,7 +109,6 @@ pub struct MeshMerger {
     pub mesh_polygons: Vec<Polygon>,
     pub polygon_unions: UnionFind,
 }
-
 impl MeshMerger {
     /// Actually returns double the area of the polygon...
     /// Assume that mesh_vertices is populated and is valid.
@@ -244,7 +243,7 @@ impl MeshMerger {
     /// Return None if `self.mesh_polygons[polygon_to_index]` is a merged polygon.
     /// Return None if resulting polygon would be concave.
     /// Return None if there's no neighbour polygon on that index.
-    fn can_merge(
+    pub fn can_merge(
         &self,
         polygon_to_index: i32,
         vertex_to_index: u32,
@@ -341,11 +340,12 @@ impl MeshMerger {
         if Self::cw(
             &self.mesh_vertices[getc(
                 &polygon_to.vertices,
-                from_vertice_2.0 as u32 + polygon_to.vertices.len() as u32 - 1,
+                to_vertice_2.0 as u32 + polygon_to.vertices.len() as u32 - 1,
             ) as usize]
                 .p,
             &self.mesh_vertices[from_vertice_2.1 as usize].p,
-            &self.mesh_vertices[getc(&polygon_from.vertices, to_vertice_2.0 + 1) as usize].p,
+            &self.mesh_vertices[getc(&polygon_from.vertices, from_vertice_2.0 as u32 + 1) as usize]
+                .p,
         ) {
             return Err(ImpossibleMergeInfo::SecondVertexClockwise);
         }
@@ -435,22 +435,8 @@ impl MeshMerger {
                         self.can_merge(*polygon_to_index as i32, merge_index as u32)
                     {
                         let from = merge_info.polygon_from as usize;
-
-                        if merge_count == 63 {
-                            //dbg!(&self.polygon_unions);
-                            dbg!(&self.mesh_polygons[merge_info.polygon_from as usize]);
-                            dbg!(&self.mesh_polygons[merge_info.polygon_to as usize]);
-                        }
                         self.merge(&merge_info);
-                        if merge_count == 63 {
-                            //dbg!(&self.polygon_unions);
-                            //dbg!(&self.mesh_polygons[merge_info.polygon_from as usize]);
-                            dbg!(&self.mesh_polygons[merge_info.polygon_to as usize]);
-                        }
                         check_new_merge = true;
-                        dbg!(format!(
-                            "merged into polygon {polygon_to_index} at its vertex {merge_index} from polygon {from}; merged {merge_count} polygons so far."
-                        ));
                         self.is_correct();
                         merge_count += 1;
                         break 'search_merge;
@@ -531,7 +517,6 @@ mod tests {
             polygon_from: 1,
             from_index: 0,
         });
-        dbg!(&mesh_merger);
         let mut mesh_merger = MeshMerger::from_bytes(&buffer);
         mesh_merger.merge(&MergeInfo {
             polygon_to: 1,
@@ -539,7 +524,6 @@ mod tests {
             polygon_from: 0,
             from_index: 2,
         });
-        dbg!(&mesh_merger);
     }
     #[test]
     fn merge_quad() {
@@ -547,9 +531,7 @@ mod tests {
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
         let mut mesh_merger = MeshMerger::from_bytes(&buffer);
-        //dbg!(&mesh_merger.mesh_polygons);
         mesh_merger.my_merge();
-        //dbg!(&mesh_merger.mesh_polygons);
         assert_eq!(
             mesh_merger.mesh_polygons[0],
             crate::meshmerger::Polygon {
@@ -588,7 +570,6 @@ mod tests {
         file.read_to_end(&mut buffer).unwrap();
         let mut mesh_merger = MeshMerger::from_bytes(&buffer);
         mesh_merger.my_merge();
-        dbg!(&mesh_merger);
         assert_eq!(
             mesh_merger.mesh_polygons[2],
             crate::meshmerger::Polygon {
@@ -604,40 +585,35 @@ mod tests {
         let mut file = std::fs::File::open("assets/meshes/quad_plus_one.mesh").unwrap();
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
-        {
-            let mut mesh_merger = MeshMerger::from_bytes(&buffer);
-            dbg!(&mesh_merger.mesh_polygons[0]);
-            mesh_merger.merge(&MergeInfo {
-                polygon_to: 0,
-                to_index: 1,
-                polygon_from: 1,
-                from_index: 0,
-            });
-            dbg!(&mesh_merger.mesh_polygons[0]);
-            // FIXME: This merge results in completely wrong data!
-            // - Try to isolate the culprit by merging 2 similar polygons
-            // if the result is still wrong, there's probably an issue when merging last vertex from the (to) list
-            //   Or maaybe the problem is in the from too ?
-            // if the result is fine, there might be a problem with the polygon unions redirections
-            mesh_merger.merge(&MergeInfo {
-                polygon_to: 0,
-                to_index: 1,
-                polygon_from: 2,
-                from_index: 0,
-            });
-            dbg!(&mesh_merger.mesh_polygons[0]);
+        let mut mesh_merger = MeshMerger::from_bytes(&buffer);
+        mesh_merger.merge(&MergeInfo {
+            polygon_to: 0,
+            to_index: 1,
+            polygon_from: 1,
+            from_index: 0,
+        });
+        for (polygon_to_index, _) in mesh_merger.mesh_polygons.iter().enumerate() {
+            let polygon = &mesh_merger.mesh_polygons[polygon_to_index];
+            for merge_index in 0..polygon.vertices.len() {
+                if (polygon_to_index == 0 && merge_index == 3)
+                    || (polygon_to_index == 2 && merge_index == 0)
+                {
+                    assert!(mesh_merger
+                        .can_merge(polygon_to_index as i32, merge_index as u32)
+                        .is_ok());
+                } else {
+                    assert!(mesh_merger
+                        .can_merge(polygon_to_index as i32, merge_index as u32)
+                        .is_err());
+                }
+            }
         }
-        return;
-        {
-            let mut mesh_merger = MeshMerger::from_bytes(&buffer);
-            mesh_merger.merge(&MergeInfo {
-                polygon_to: 1,
-                to_index: 2,
-                polygon_from: 0,
-                from_index: 2,
-            });
-            dbg!(&mesh_merger);
-        }
+        mesh_merger.merge(&MergeInfo {
+            polygon_to: 2,
+            to_index: 0,
+            polygon_from: 0,
+            from_index: 0,
+        });
     }
     #[test]
     fn merge_arena() {
@@ -650,8 +626,6 @@ mod tests {
             mesh_merger.is_correct(),
             "source file is incorrect or loading code is not."
         );
-        //dbg!(&mesh_merger);
         mesh_merger.my_merge();
-        //dbg!(&mesh_merger);
     }
 }
