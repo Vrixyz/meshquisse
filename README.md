@@ -18,7 +18,7 @@ Meshquisse is an attempt to fill the gaps:
 
 ### Showcase
 
-![interactive navmesh](doc/edit_mesh_to_navmesh.mp4)
+![interactive navmesh](https://raw.githubusercontent.com/Vrixyz/meshquisse/main/doc/edit_mesh_to_navmesh.mp4)
 
 ### Roadmap
 
@@ -29,7 +29,7 @@ Meshquisse is an attempt to fill the gaps:
 
 ## Tech talk
 
-The idea is to have a mesh data, to work with different modules (navmesh, render, runtime edition).
+The idea is to have a mesh data, to work with different modules (navmesh, render, interactive edition...).
 
 Following diagram is a rough representation of the components organization of the project.
 
