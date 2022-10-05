@@ -18,7 +18,7 @@ Meshquisse is an attempt to fill the gaps:
 
 ### Showcase
 
-https://raw.githubusercontent.com/Vrixyz/meshquisse/main/doc/edit_mesh_to_navmesh.mp4
+https://user-images.githubusercontent.com/2290685/194018684-093299ca-8e81-411a-a286-7e03de622f26.mp4
 
 ### Roadmap
 
