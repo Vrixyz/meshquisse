@@ -40,12 +40,12 @@ pub struct Vertex {
 
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct Polygon {
-    num_traversable: u32,
-    area: f32,
-    vertices: Vec<u32>,
+    pub num_traversable: u32,
+    pub area: f32,
+    pub vertices: Vec<u32>,
     /// Stores the original polygons.
     /// To get the actual polygon, do polygon_unions.find on the polygon you get.
-    polygons: Vec<i32>,
+    pub polygons: Vec<i32>,
 }
 
 struct SearchNode {

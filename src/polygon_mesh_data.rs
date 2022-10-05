@@ -1,4 +1,7 @@
-use crate::{interact_mesh::TriangleMeshData, meshmerger::MeshMerger};
+use crate::{
+    interact_mesh::TriangleMeshData,
+    meshmerger::{MeshMerger, Polygon, Vertex},
+};
 
 pub struct ConvexPolygons {
     pub mesh_vertices: Vec<Vertex>,

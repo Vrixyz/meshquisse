@@ -1,6 +1,7 @@
 pub mod interact_mesh;
 pub mod meshmerger;
 pub mod navmesh;
+pub mod polygon_mesh_data;
 pub mod tools;
 
 use bevy::{input::keyboard::KeyboardInput, math::Vec3Swizzles, prelude::*};

@@ -8,6 +8,7 @@ use crate::{
     tools::{self, bevymesh_from_trimesh, navmesh_from_trimesh, TriangleMesh},
     MainCamera,
 };
+use polyanya::Mesh as PAMesh;
 
 pub struct InteractMeshPlugin;
 
@@ -22,18 +23,67 @@ impl Plugin for InteractMeshPlugin {
                 SystemStage::parallel(),
             )
             .add_system_to_stage("before_preupdate", adapt_camera)
-            .add_system(spawn_vertices_selectable)
-            .add_system(update_vertices_position)
-            .add_system(spawn_visual_mesh)
-            .add_system(update_visual_mesh)
-            .add_system(spawn_navmesh)
-            .add_system(update_navmesh);
+            .add_system(spawn_vertices_selectable::<TriangleMeshData>)
+            .add_system(update_vertices_position::<TriangleMeshData>)
+            .add_system(spawn_visual_mesh::<TriangleMeshData>)
+            .add_system(update_visual_mesh::<TriangleMeshData>)
+            .add_system(spawn_navmesh::<TriangleMeshData>)
+            .add_system(update_navmesh::<TriangleMeshData>);
     }
 }
 
+trait IntoPAMesh {
+    fn to_pa_mesh(&self) -> PAMesh;
+}
+trait UpdateVertex {
+    fn update_vertex(&mut self, vertex_index: u32, position: Vec3);
+    fn iter_positions(&self) -> std::slice::Iter<'_, Vec2>;
+}
+trait IntoBevyMesh {
+    fn to_bevy_mesh(&self) -> Mesh;
+    fn update_mesh(&self, mesh: &mut Mesh);
+}
 /// Meant to be used in correlation with `ShowAndUpdateMesh` and/or `EditableMesh`
 #[derive(Component)]
 pub struct TriangleMeshData(pub TriangleMesh);
+
+impl IntoPAMesh for TriangleMeshData {
+    fn to_pa_mesh(&self) -> PAMesh {
+        navmesh_from_trimesh(&self.0)
+    }
+}
+
+impl UpdateVertex for TriangleMeshData {
+    fn update_vertex(&mut self, vertex_index: u32, position: Vec3) {
+        self.0.positions[vertex_index as usize] = position.xz();
+    }
+
+    fn iter_positions(&self) -> std::slice::Iter<'_, Vec2> {
+        self.0.positions.iter()
+    }
+}
+
+impl IntoBevyMesh for TriangleMeshData {
+    fn to_bevy_mesh(&self) -> Mesh {
+        tools::bevymesh_from_trimesh(&self.0)
+    }
+
+    fn update_mesh(&self, mesh: &mut Mesh) {
+        if let Some(bevy::render::mesh::VertexAttributeValues::Float32x3(ref mut positions)) =
+            mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
+        {
+            positions
+                .iter_mut()
+                .enumerate()
+                .for_each(|(index, position)| {
+                    let pos_data = self.0.positions[index];
+                    position[0] = pos_data.x;
+                    position[1] = 0f32;
+                    position[2] = pos_data.y;
+                });
+        }
+    }
+}
 
 /// Only useful if entity has a `TriangleMeshData`.
 /// Will insert a `navmesh::NavMesh` as component,
@@ -85,17 +135,17 @@ fn adapt_camera(mut commands: Commands, q_cam: Query<Entity, Added<MainCamera>>)
     }
 }
 
-fn spawn_visual_mesh(
+fn spawn_visual_mesh<MeshData: IntoBevyMesh + Component>(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     assets: Res<InteractAssets>,
     mut q_new_shown_meshes: Query<
-        (Entity, &TriangleMeshData, &mut ShowAndUpdateMesh),
+        (Entity, &MeshData, &mut ShowAndUpdateMesh),
         Added<ShowAndUpdateMesh>,
     >,
 ) {
     for (e, mesh_data, mut show_update_mesh) in q_new_shown_meshes.iter_mut() {
-        let mesh_handle = meshes.add(tools::bevymesh_from_trimesh(&mesh_data.0));
+        let mesh_handle = meshes.add(mesh_data.to_bevy_mesh());
         (*show_update_mesh).0 = Some(mesh_handle.clone());
         commands.entity(e).insert_bundle(PbrBundle {
             mesh: mesh_handle,
@@ -105,33 +155,20 @@ fn spawn_visual_mesh(
     }
 }
 
-fn update_visual_mesh(
+fn update_visual_mesh<MeshData: IntoBevyMesh + Component>(
     mut meshes: ResMut<Assets<Mesh>>,
-    q_updated_meshes: Query<(&ShowAndUpdateMesh, &TriangleMeshData), Changed<TriangleMeshData>>,
+    q_updated_meshes: Query<(&ShowAndUpdateMesh, &MeshData), Changed<MeshData>>,
 ) {
     for (update, mesh_data) in q_updated_meshes.iter() {
         if let Some(mesh_handle) = update.0.as_ref() {
             if let Some(mesh) = meshes.get_mut(mesh_handle) {
-                if let Some(bevy::render::mesh::VertexAttributeValues::Float32x3(
-                    ref mut positions,
-                )) = mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
-                {
-                    positions
-                        .iter_mut()
-                        .enumerate()
-                        .for_each(|(index, position)| {
-                            let pos_data = mesh_data.0.positions[index];
-                            position[0] = pos_data.x;
-                            position[1] = 0f32;
-                            position[2] = pos_data.y;
-                        });
-                }
+                mesh_data.update_mesh(mesh)
             }
         }
     }
 }
 
-fn spawn_vertices_selectable(
+fn spawn_vertices_selectable<MeshData: UpdateVertex + Component>(
     mut commands: Commands,
     assets: Res<InteractAssets>,
     q_new_editable_meshes: Query<(Entity, &TriangleMeshData), Added<EditableMesh>>,
@@ -158,34 +195,34 @@ fn spawn_vertices_selectable(
     }
 }
 
-fn update_vertices_position(
+fn update_vertices_position<MeshData: UpdateVertex + Component>(
     q_changed_vertices: Query<(&Parent, &EditableMeshVertex, &Transform), Changed<Transform>>,
-    mut q_parent_mesh_data: Query<&mut TriangleMeshData>,
+    mut q_parent_mesh_data: Query<&mut MeshData>,
 ) {
     for (parent, vertex, transform) in q_changed_vertices.iter() {
-        if let Ok(mut mesh_to_edit) = q_parent_mesh_data.get_mut(parent.get()) {
-            mesh_to_edit.0.positions[vertex.vertex_id as usize] = transform.translation.xz();
+        if let Ok(mut mesh_data_to_edit) = q_parent_mesh_data.get_mut(parent.get()) {
+            mesh_data_to_edit.update_vertex(vertex.vertex_id, transform.translation);
         }
     }
 }
 
-fn spawn_navmesh(
+fn spawn_navmesh<MeshData: IntoPAMesh + Component>(
     mut commands: Commands,
-    mut q_new_shown_meshes: Query<(Entity, &TriangleMeshData), Added<UpdateNavMesh>>,
+    mut q_new_shown_meshes: Query<(Entity, &MeshData), Added<UpdateNavMesh>>,
 ) {
     for (e, mesh_data) in q_new_shown_meshes.iter_mut() {
-        let navmesh = navmesh_from_trimesh(&mesh_data.0);
+        let navmesh = mesh_data.to_pa_mesh();
         commands.entity(e).insert(NavMesh { navmesh });
     }
 }
 
-fn update_navmesh(
+fn update_navmesh<MeshData: IntoPAMesh + Component>(
     mut q_updated_meshes: Query<
-        (&mut NavMesh, &TriangleMeshData),
-        (Changed<TriangleMeshData>, With<UpdateNavMesh>),
+        (&mut NavMesh, &MeshData),
+        (Changed<MeshData>, With<UpdateNavMesh>),
     >,
 ) {
     for (mut update, mesh_data) in q_updated_meshes.iter_mut() {
-        update.navmesh = navmesh_from_trimesh(&mesh_data.0);
+        update.navmesh = mesh_data.to_pa_mesh();
     }
 }
