@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use bevy::{math::Vec3Swizzles, prelude::*};
 use bevy_rapier3d::prelude::RapierContext;
 use bevy_transform_gizmo::TransformGizmoSystem;
@@ -10,9 +12,16 @@ use crate::{
 };
 use polyanya::Mesh as PAMesh;
 
-pub struct InteractMeshPlugin;
+#[derive(Default)]
+pub struct InteractMeshPlugin<
+    MeshData: 'static + Component + Sync + Send + IntoPAMesh + UpdateVertex + IntoBevyMesh,
+> {
+    _p: PhantomData<MeshData>,
+}
 
-impl Plugin for InteractMeshPlugin {
+impl<MeshData: 'static + Component + Sync + Send + IntoPAMesh + UpdateVertex + IntoBevyMesh> Plugin
+    for InteractMeshPlugin<MeshData>
+{
     fn build(&self, app: &mut bevy::prelude::App) {
         app.add_plugins(bevy_mod_picking::DefaultPickingPlugins)
             .add_plugin(bevy_transform_gizmo::TransformGizmoPlugin::default())
@@ -23,66 +32,26 @@ impl Plugin for InteractMeshPlugin {
                 SystemStage::parallel(),
             )
             .add_system_to_stage("before_preupdate", adapt_camera)
-            .add_system(spawn_vertices_selectable::<TriangleMeshData>)
-            .add_system(update_vertices_position::<TriangleMeshData>)
-            .add_system(spawn_visual_mesh::<TriangleMeshData>)
-            .add_system(update_visual_mesh::<TriangleMeshData>)
-            .add_system(spawn_navmesh::<TriangleMeshData>)
-            .add_system(update_navmesh::<TriangleMeshData>);
+            .add_system(spawn_vertices_selectable::<MeshData>)
+            .add_system(update_vertices_position::<MeshData>)
+            .add_system(spawn_visual_mesh::<MeshData>)
+            .add_system(update_visual_mesh::<MeshData>)
+            .add_system(spawn_navmesh::<MeshData>)
+            .add_system(update_navmesh::<MeshData>);
     }
 }
 
-trait IntoPAMesh {
+pub trait IntoPAMesh {
     fn to_pa_mesh(&self) -> PAMesh;
 }
-trait UpdateVertex {
+pub trait UpdateVertex {
     fn update_vertex(&mut self, vertex_index: u32, position: Vec3);
-    fn iter_positions(&self) -> std::slice::Iter<'_, Vec2>;
+    // FIXME: perf is horrible but I didn't succeed in getting a generic iterator over Vec2 or Vertex.
+    fn iter_positions(&self) -> Vec<Vec2>;
 }
-trait IntoBevyMesh {
+pub trait IntoBevyMesh {
     fn to_bevy_mesh(&self) -> Mesh;
     fn update_mesh(&self, mesh: &mut Mesh);
-}
-/// Meant to be used in correlation with `ShowAndUpdateMesh` and/or `EditableMesh`
-#[derive(Component)]
-pub struct TriangleMeshData(pub TriangleMesh);
-
-impl IntoPAMesh for TriangleMeshData {
-    fn to_pa_mesh(&self) -> PAMesh {
-        navmesh_from_trimesh(&self.0)
-    }
-}
-
-impl UpdateVertex for TriangleMeshData {
-    fn update_vertex(&mut self, vertex_index: u32, position: Vec3) {
-        self.0.positions[vertex_index as usize] = position.xz();
-    }
-
-    fn iter_positions(&self) -> std::slice::Iter<'_, Vec2> {
-        self.0.positions.iter()
-    }
-}
-
-impl IntoBevyMesh for TriangleMeshData {
-    fn to_bevy_mesh(&self) -> Mesh {
-        tools::bevymesh_from_trimesh(&self.0)
-    }
-
-    fn update_mesh(&self, mesh: &mut Mesh) {
-        if let Some(bevy::render::mesh::VertexAttributeValues::Float32x3(ref mut positions)) =
-            mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
-        {
-            positions
-                .iter_mut()
-                .enumerate()
-                .for_each(|(index, position)| {
-                    let pos_data = self.0.positions[index];
-                    position[0] = pos_data.x;
-                    position[1] = 0f32;
-                    position[2] = pos_data.y;
-                });
-        }
-    }
 }
 
 /// Only useful if entity has a `TriangleMeshData`.
@@ -171,11 +140,11 @@ fn update_visual_mesh<MeshData: IntoBevyMesh + Component>(
 fn spawn_vertices_selectable<MeshData: UpdateVertex + Component>(
     mut commands: Commands,
     assets: Res<InteractAssets>,
-    q_new_editable_meshes: Query<(Entity, &TriangleMeshData), Added<EditableMesh>>,
+    q_new_editable_meshes: Query<(Entity, &MeshData), Added<EditableMesh>>,
 ) {
     for (e, mesh_data) in q_new_editable_meshes.iter() {
         commands.entity(e).add_children(|parent| {
-            for (vertex_id, position) in mesh_data.0.positions.iter().enumerate() {
+            for (vertex_id, position) in mesh_data.iter_positions().iter().enumerate() {
                 parent
                     .spawn_bundle(PbrBundle {
                         mesh: assets.gizmo_mesh.clone(),

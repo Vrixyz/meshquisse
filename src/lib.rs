@@ -10,6 +10,7 @@ use bevy_polyline::prelude::*;
 use bevy_rapier3d::prelude::*;
 use interact_mesh::InteractMeshPlugin;
 use navmesh::NavMeshPlugin;
+use polygon_mesh_data::TriangleMeshData;
 
 pub struct MeshquissePlugin;
 
@@ -25,7 +26,6 @@ impl Plugin for MeshquissePlugin {
         .add_plugin(PolylinePlugin)
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
         .add_plugin(RapierDebugRenderPlugin::default())
-        .add_plugin(InteractMeshPlugin)
         .add_plugin(NavMeshPlugin)
         .add_startup_system(setup_graphics)
         .add_startup_system(setup_physics)

@@ -1,7 +1,7 @@
 use bevy::prelude::{Vec2, Vec3};
 use polyanya::{Mesh as PAMesh, Polygon, Vertex};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Default)]
 pub struct TriangleMesh {
     pub indices: Vec<u32>,
     pub positions: Vec<Vec2>,

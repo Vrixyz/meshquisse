@@ -434,7 +434,7 @@ impl MeshMerger {
                     if let Ok(merge_info) =
                         self.can_merge(*polygon_to_index as i32, merge_index as u32)
                     {
-                        let from = merge_info.polygon_from as usize;
+                        dbg!("merging {merge_info}");
                         self.merge(&merge_info);
                         check_new_merge = true;
                         self.is_correct();

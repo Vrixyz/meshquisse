@@ -1,7 +1,10 @@
+use std::io::Read;
+
 use bevy::prelude::*;
 use meshquisse::{
     interact_mesh::{EditableMesh, InteractMeshPlugin, ShowAndUpdateMesh, UpdateNavMesh},
-    polygon_mesh_data::TriangleMeshData,
+    meshmerger::MeshMerger,
+    polygon_mesh_data::{ConvexPolygonsMeshData, TriangleMeshData},
     *,
 };
 
@@ -14,19 +17,23 @@ struct ToolPlugin;
 impl Plugin for ToolPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(MeshquissePlugin)
-            .add_plugin(InteractMeshPlugin::<TriangleMeshData>::default())
+            .add_plugin(InteractMeshPlugin::<ConvexPolygonsMeshData>::default())
             .add_startup_system(setup);
     }
 }
 
 fn setup(mut commands: Commands) {
-    // NavMesh
-    let trimesh = tools::create_grid_trimesh(3, 3, 10f32);
+    let mut file = std::fs::File::open("assets/meshes/aurora_merged.mesh").unwrap();
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer).unwrap();
+    let mut mesh_merger = MeshMerger::from_bytes(&buffer);
+    mesh_merger.my_merge();
+    let convex_data = ConvexPolygonsMeshData::from(&mesh_merger);
 
     commands
         .spawn()
         //.insert(NavMesh { navmesh })
-        .insert(TriangleMeshData(trimesh))
+        .insert(convex_data)
         .insert(ShowAndUpdateMesh::default())
         .insert(UpdateNavMesh)
         .insert(EditableMesh);
