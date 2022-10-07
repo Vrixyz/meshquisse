@@ -23,7 +23,7 @@ impl Plugin for ToolPlugin {
 }
 
 fn setup(mut commands: Commands) {
-    let mut file = std::fs::File::open("assets/meshes/aurora_merged.mesh").unwrap();
+    let mut file = std::fs::File::open("assets/meshes/arena_merged.mesh").unwrap();
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).unwrap();
     let mut mesh_merger = MeshMerger::from_bytes(&buffer);

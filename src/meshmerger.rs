@@ -322,29 +322,29 @@ impl MeshMerger {
         // The merge will insert vertices between 'from_vertice_1' and 'from_vertice_2'
         // between to_vertice_1 and to_vertice_2
 
-        // check clockwiseness for (from_vertice_1 - 1, from_vertice_1, to_vertice_1 + 1)
+        // check clockwiseness for (from_vertice_2 - 1, from_vertice_2, to_vertice_2 + 1)
         // If the new ones are clockwise, we must return false.
         if Self::cw(
             &self.mesh_vertices[getc(
                 &polygon_from.vertices,
-                from_vertice_1.0 as u32 + polygon_from.vertices.len() as u32 - 1,
+                from_vertice_2.0 as u32 + polygon_from.vertices.len() as u32 - 1,
             ) as usize]
                 .p,
-            &self.mesh_vertices[from_vertice_1.1 as usize].p,
-            &self.mesh_vertices[getc(&polygon_to.vertices, to_vertice_1.0 + 1) as usize].p,
+            &self.mesh_vertices[from_vertice_2.1 as usize].p,
+            &self.mesh_vertices[getc(&polygon_to.vertices, to_vertice_2.0 + 1) as usize].p,
         ) {
             return Err(ImpossibleMergeInfo::FirstVertexClockwise);
         }
-        // check clockwiseness for (to_vertice_2 - 1, to_vertice_2, from_vertice_1 + 1)
+        // check clockwiseness for (to_vertice_1 - 1, to_vertice_1, from_vertice_1 + 1)
         // If the new ones are clockwise, we must return false.
         if Self::cw(
             &self.mesh_vertices[getc(
                 &polygon_to.vertices,
-                to_vertice_2.0 as u32 + polygon_to.vertices.len() as u32 - 1,
+                to_vertice_1.1 as u32 + polygon_to.vertices.len() as u32 - 1,
             ) as usize]
                 .p,
-            &self.mesh_vertices[from_vertice_2.1 as usize].p,
-            &self.mesh_vertices[getc(&polygon_from.vertices, from_vertice_2.0 as u32 + 1) as usize]
+            &self.mesh_vertices[from_vertice_1.1 as usize].p,
+            &self.mesh_vertices[getc(&polygon_from.vertices, from_vertice_1.0 as u32 + 1) as usize]
                 .p,
         ) {
             return Err(ImpossibleMergeInfo::SecondVertexClockwise);
@@ -424,18 +424,27 @@ impl MeshMerger {
         let mut check_new_merge = true;
         let mut merge_count = 0;
         while check_new_merge {
+            println!("sorting {} polygons", sorted_area_polygon_indexes.len());
             sorted_area_polygon_indexes
                 .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
+            let mut progress = 0;
             check_new_merge = false;
             'search_merge: for (polygon_to_index, _) in sorted_area_polygon_indexes.iter() {
+                progress += 1;
+                if progress % 1000 == 100 {
+                    println!(
+                        "polygon {polygon_to_index}/{}",
+                        sorted_area_polygon_indexes.len()
+                    );
+                }
                 let polygon = &self.mesh_polygons[*polygon_to_index];
                 for merge_index in 0..polygon.vertices.len() {
                     if let Ok(merge_info) =
                         self.can_merge(*polygon_to_index as i32, merge_index as u32)
                     {
-                        dbg!("merging {merge_info}");
                         self.merge(&merge_info);
+                        println!("merged {merge_info:?}, {merge_count} merged so far.");
                         check_new_merge = true;
                         self.is_correct();
                         merge_count += 1;
@@ -537,7 +546,7 @@ mod tests {
             crate::meshmerger::Polygon {
                 num_traversable: 0,
                 area: 4.5,
-                vertices: vec![0, 1, 2, 3,],
+                vertices: vec![3, 0, 1, 2,],
                 polygons: vec![-1, -1, -1, -1,],
             }
         )
@@ -618,6 +627,21 @@ mod tests {
     #[test]
     fn merge_arena() {
         let mut file = std::fs::File::open("assets/meshes/arena.mesh").unwrap();
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).unwrap();
+
+        let mut mesh_merger = MeshMerger::from_bytes(&buffer);
+        assert!(
+            mesh_merger.is_correct(),
+            "source file is incorrect or loading code is not."
+        );
+        mesh_merger.my_merge();
+    }
+
+    /// This test results in wrong behaviour, because the merge() function does 26 merges, but data is supposed to be merged already.
+    #[test]
+    fn merge_arena_merged() {
+        let mut file = std::fs::File::open("assets/meshes/arena_merged.mesh").unwrap();
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
 
