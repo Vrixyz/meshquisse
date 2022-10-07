@@ -15,7 +15,6 @@ impl Plugin for NavMeshPlugin {
             features: WgpuFeatures::POLYGON_MODE_LINE,
             ..default()
         })
-        .add_plugin(WireframePlugin)
         .add_startup_system(setup_navmesh_graphics); //.add_system(update_mesh_visualization);
     }
 }

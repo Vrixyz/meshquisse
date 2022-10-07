@@ -103,10 +103,67 @@ impl UpdateVertex for ConvexPolygonsMeshData {
 
 impl IntoBevyMesh for ConvexPolygonsMeshData {
     fn to_bevy_mesh(&self) -> Mesh {
-        tools::bevymesh_from_trimesh(&TriangleMeshData::from(self).0)
+        use bevy::render::{mesh::Indices, prelude::*, render_resource::PrimitiveTopology};
+
+        let indices_polygons = self.mesh_polygons.iter().map(|p| {
+            (2..p.vertices.len()).flat_map(|i| [p.vertices[0], p.vertices[i], p.vertices[i - 1]])
+        });
+        let positions = indices_polygons.clone().map(|polygon_indices| {
+            polygon_indices.map(|vertex_index| self.mesh_vertices[vertex_index as usize].p)
+        });
+        let nb_polygons = self.mesh_polygons.len();
+        let nb_vertices = indices_polygons.clone().flatten().count();
+        /*
+        for (polygon_index, indices) in indices_polygons.enumerate() {
+            let position = positions.next();
+        }*/
+
+        let mut new_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+        new_mesh.insert_attribute(
+            Mesh::ATTRIBUTE_POSITION,
+            positions
+                .clone()
+                .flatten()
+                .map(|p| [p.x, 0.0, p.y])
+                .collect::<Vec<[f32; 3]>>(),
+        );
+        new_mesh.set_indices(Some(Indices::U32(
+            (0..nb_vertices).map(|v| v as u32).collect(),
+        )));
+        new_mesh.insert_attribute(
+            Mesh::ATTRIBUTE_NORMAL,
+            (0..nb_vertices)
+                .map(|_| [0.0, 1.0, 0.0])
+                .collect::<Vec<[f32; 3]>>(),
+        );
+        new_mesh.insert_attribute(
+            Mesh::ATTRIBUTE_UV_0,
+            positions
+                .clone()
+                .flatten()
+                .map(|v| [v.x, v.y])
+                .collect::<Vec<[f32; 2]>>(),
+        );
+        let color_hue = 0f32;
+        let colors: Vec<[f32; 4]> = indices_polygons
+            .clone()
+            .enumerate()
+            .flat_map(|(index, polygon_vertices)| {
+                let color =
+                    Color::hsl((index as f32 / nb_polygons as f32) * 360f32, 0.5f32, 0.5f32);
+                let color = [color.r(), color.g(), color.b(), 1f32];
+                println!("color: {color:?}");
+                (0..polygon_vertices.count()).map(move |_| color)
+            })
+            .collect();
+        new_mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, colors);
+        // TODO: vertex color per polygon. https://github.com/bevyengine/bevy/blob/v0.8.1/examples/3d/vertex_colors.rs
+        new_mesh
+        //        tools::bevymesh_from_trimesh(&TriangleMeshData::from(self).0)
     }
 
     fn update_mesh(&self, mesh: &mut Mesh) {
+        /*
         if let Some(bevy::render::mesh::VertexAttributeValues::Float32x3(ref mut positions)) =
             mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
         {
@@ -120,6 +177,6 @@ impl IntoBevyMesh for ConvexPolygonsMeshData {
                     position[1] = 0f32;
                     position[2] = pos_data.y;
                 });
-        }
+        }*/
     }
 }

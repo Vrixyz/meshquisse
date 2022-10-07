@@ -4,7 +4,9 @@ pub mod navmesh;
 pub mod polygon_mesh_data;
 pub mod tools;
 
-use bevy::{input::keyboard::KeyboardInput, math::Vec3Swizzles, prelude::*};
+use bevy::{
+    input::keyboard::KeyboardInput, math::Vec3Swizzles, pbr::wireframe::WireframePlugin, prelude::*,
+};
 
 use bevy_polyline::prelude::*;
 use bevy_rapier3d::prelude::*;

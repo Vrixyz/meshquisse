@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use bevy::{math::Vec3Swizzles, prelude::*};
+use bevy::{math::Vec3Swizzles, pbr::wireframe::Wireframe, prelude::*};
 use bevy_rapier3d::prelude::RapierContext;
 use bevy_transform_gizmo::TransformGizmoSystem;
 
@@ -92,7 +92,7 @@ fn init_assets(
     commands.insert_resource(InteractAssets {
         gizmo_mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
         gizmo_mesh_mat: materials.add(Color::rgb(0.99, 0.2, 0.3).into()),
-        visual_mesh_mat: materials.add(Color::rgb(0.3, 0.99, 0.2).into()),
+        visual_mesh_mat: materials.add(Color::rgb(1f32, 1f32, 1f32).into()),
     });
 }
 fn adapt_camera(mut commands: Commands, q_cam: Query<Entity, Added<MainCamera>>) {
@@ -116,11 +116,14 @@ fn spawn_visual_mesh<MeshData: IntoBevyMesh + Component>(
     for (e, mesh_data, mut show_update_mesh) in q_new_shown_meshes.iter_mut() {
         let mesh_handle = meshes.add(mesh_data.to_bevy_mesh());
         (*show_update_mesh).0 = Some(mesh_handle.clone());
-        commands.entity(e).insert_bundle(PbrBundle {
-            mesh: mesh_handle,
-            material: assets.visual_mesh_mat.clone(),
-            ..default()
-        });
+        commands
+            .entity(e)
+            .insert_bundle(PbrBundle {
+                mesh: mesh_handle,
+                material: assets.visual_mesh_mat.clone(),
+                ..default()
+            })
+            .insert(Wireframe);
     }
 }
 

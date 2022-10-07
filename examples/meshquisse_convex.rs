@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use bevy::prelude::*;
+use bevy::{pbr::wireframe::WireframePlugin, prelude::*};
 use meshquisse::{
     interact_mesh::{EditableMesh, InteractMeshPlugin, ShowAndUpdateMesh, UpdateNavMesh},
     meshmerger::MeshMerger,
@@ -17,6 +17,7 @@ struct ToolPlugin;
 impl Plugin for ToolPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(MeshquissePlugin)
+            //.add_plugin(WireframePlugin)
             .add_plugin(InteractMeshPlugin::<ConvexPolygonsMeshData>::default())
             .add_startup_system(setup);
     }
