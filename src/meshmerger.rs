@@ -6,7 +6,7 @@ use bevy::prelude::Vec2;
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct UnionFind {
-    parent: Vec<i32>,
+    pub parent: Vec<i32>,
 }
 
 impl UnionFind {
@@ -254,6 +254,9 @@ impl MeshMerger {
         polygon_to_index: i32,
         vertex_to_index: u32,
     ) -> Result<MergeInfo, ImpossibleMergeInfo> {
+        if polygon_to_index == -1 {
+            return Err(ImpossibleMergeInfo::NoNeighbour);
+        }
         if self.is_polygon_merged_into_other(polygon_to_index as u32) {
             return Err(ImpossibleMergeInfo::ToMergedIntoOther);
         }
@@ -346,7 +349,7 @@ impl MeshMerger {
         if Self::cw(
             &self.mesh_vertices[getc(
                 &polygon_to.vertices,
-                to_vertice_1.1 as u32 + polygon_to.vertices.len() as u32 - 1,
+                to_vertice_1.0 as u32 + polygon_to.vertices.len() as u32 - 1,
             ) as usize]
                 .p,
             &self.mesh_vertices[from_vertice_1.1 as usize].p,
@@ -429,20 +432,19 @@ impl MeshMerger {
             .collect();
         let mut check_new_merge = true;
         let mut merge_count = 0;
+        let mut progress = 0;
         while check_new_merge {
+            //if progress % 100 == 10 {
             println!("sorting {} polygons", sorted_area_polygon_indexes.len());
             sorted_area_polygon_indexes
                 .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-
-            let mut progress = 0;
+            //}
             check_new_merge = false;
             'search_merge: for (polygon_to_index, _) in sorted_area_polygon_indexes.iter() {
                 progress += 1;
                 if progress % 1000 == 100 {
-                    println!(
-                        "polygon {polygon_to_index}/{}",
-                        sorted_area_polygon_indexes.len()
-                    );
+                    //println!("polygon {polygon_to_index}/{}",sorted_area_polygon_indexes.len());
+                    println!("{merge_count} merged so far.");
                 }
                 let polygon = &self.mesh_polygons[*polygon_to_index];
                 for merge_index in 0..polygon.vertices.len() {
@@ -450,7 +452,7 @@ impl MeshMerger {
                         self.can_merge(*polygon_to_index as i32, merge_index as u32)
                     {
                         self.merge(&merge_info);
-                        println!("merged {merge_info:?}, {merge_count} merged so far.");
+                        // println!("merged {merge_info:?}, {merge_count} merged so far.");
                         check_new_merge = true;
                         self.is_correct();
                         merge_count += 1;
@@ -633,6 +635,19 @@ mod tests {
     #[test]
     fn merge_arena() {
         let mut file = std::fs::File::open("assets/meshes/arena.mesh").unwrap();
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).unwrap();
+
+        let mut mesh_merger = MeshMerger::from_bytes(&buffer);
+        assert!(
+            mesh_merger.is_correct(),
+            "source file is incorrect or loading code is not."
+        );
+        mesh_merger.my_merge();
+    }
+    #[test]
+    fn merge_aurora() {
+        let mut file = std::fs::File::open("assets/meshes/aurora.mesh").unwrap();
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
 

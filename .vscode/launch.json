@@ -44,6 +44,24 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug example 'meshquisse_convex'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=meshquisse_convex",
+                    "--package=meshquisse"
+                ],
+                "filter": {
+                    "name": "meshquisse_convex",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in example 'meshquisse'",
             "cargo": {
                 "args": [

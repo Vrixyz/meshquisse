@@ -126,7 +126,23 @@ fn spawn_visual_mesh<MeshData: IntoBevyMesh + Component>(
             .insert(Wireframe);
     }
 }
+/*
+/// Optimised update to modify only vertex positions
+fn update_visual_mesh<MeshData: IntoBevyMesh + Component>(
+    mut meshes: ResMut<Assets<Mesh>>,
+    q_updated_meshes: Query<(&ShowAndUpdateMesh, &MeshData), Changed<MeshData>>,
+) {
+    for (update, mesh_data) in q_updated_meshes.iter() {
+        dbg!("changed");
+        if let Some(mesh_handle) = update.0.as_ref() {
+            if let Some(mesh) = meshes.get_mut(mesh_handle) {
+                mesh_data.update_mesh(mesh)
+            }
+        }
+    }
+}*/
 
+/// full update
 fn update_visual_mesh<MeshData: IntoBevyMesh + Component>(
     mut meshes: ResMut<Assets<Mesh>>,
     q_updated_meshes: Query<(&ShowAndUpdateMesh, &MeshData), Changed<MeshData>>,
@@ -134,7 +150,7 @@ fn update_visual_mesh<MeshData: IntoBevyMesh + Component>(
     for (update, mesh_data) in q_updated_meshes.iter() {
         if let Some(mesh_handle) = update.0.as_ref() {
             if let Some(mesh) = meshes.get_mut(mesh_handle) {
-                mesh_data.update_mesh(mesh)
+                *mesh = mesh_data.to_bevy_mesh();
             }
         }
     }
@@ -173,7 +189,7 @@ fn update_vertices_position<MeshData: UpdateVertex + Component>(
 ) {
     for (parent, vertex, transform) in q_changed_vertices.iter() {
         if let Ok(mut mesh_data_to_edit) = q_parent_mesh_data.get_mut(parent.get()) {
-            mesh_data_to_edit.update_vertex(vertex.vertex_id, transform.translation);
+            mesh_data_to_edit.update_vertex(dbg!(vertex.vertex_id), transform.translation);
         }
     }
 }
@@ -196,6 +212,5 @@ fn update_navmesh<MeshData: IntoPAMesh + Component>(
 ) {
     for (mut update, mesh_data) in q_updated_meshes.iter_mut() {
         update.navmesh = mesh_data.to_pa_mesh();
-        dbg!(&update.navmesh);
     }
 }

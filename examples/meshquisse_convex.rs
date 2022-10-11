@@ -21,22 +21,23 @@ impl Plugin for ToolPlugin {
             //.add_plugin(WireframePlugin)
             .add_plugin(InteractMeshPlugin::<ConvexPolygonsMeshData>::default())
             .add_startup_system(setup)
-            .add_system(save_mesh);
+            .add_system(save_mesh)
+            .add_system(try_merge_1);
     }
 }
 
 fn setup(mut commands: Commands) {
-    /*
-        let mut file = std::fs::File::open("assets/meshes/arena_merged.mesh").unwrap();
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).unwrap();
-        let mut mesh_merger = MeshMerger::from_bytes(&buffer);
+    ///*
+    let mut file = std::fs::File::open("assets/meshes/arena.mesh").unwrap();
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer).unwrap();
+    let mut mesh_merger = MeshMerger::from_bytes(&buffer);
 
-        let convex_data = ConvexPolygonsMeshData::from(&mesh_merger);
-    */
-    let triangles_data = create_grid_trimesh(2, 2, 10f32);
+    let convex_data = ConvexPolygonsMeshData::from(&mesh_merger);
+    // */
+    //let triangles_data = create_grid_trimesh(5, 5, 10f32);
 
-    let convex_data = ConvexPolygonsMeshData::from(&TriangleMeshData(triangles_data));
+    //let convex_data = ConvexPolygonsMeshData::from(&TriangleMeshData(triangles_data));
 
     let nb_polygons = convex_data.mesh_polygons.len();
     let mut mesh_merger = MeshMerger {
@@ -44,7 +45,8 @@ fn setup(mut commands: Commands) {
         mesh_polygons: convex_data.mesh_polygons,
         polygon_unions: UnionFind::new(nb_polygons as i32),
     };
-    mesh_merger.my_merge();
+    //dbg!(&mesh_merger);
+    //mesh_merger.my_merge();
 
     let convex_data = ConvexPolygonsMeshData::from(&mesh_merger);
 
@@ -60,5 +62,36 @@ fn setup(mut commands: Commands) {
 fn save_mesh(keyboard_input: Res<Input<KeyCode>>) {
     if keyboard_input.pressed(KeyCode::S) {
         // TODO: save mesh into mesh 2 format, to load into it and test different merge stuff.
+    }
+}
+fn try_merge_1(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut mesh_convex_data: Query<&mut ConvexPolygonsMeshData>,
+) {
+    if keyboard_input.just_pressed(KeyCode::M) {
+        dbg!("just pressed M");
+        for mut data in mesh_convex_data.iter_mut() {
+            let nb_polygons = data.mesh_polygons.len();
+            let union_find = UnionFind {
+                parent: (0i32..(nb_polygons as i32))
+                    .map(|polygon_index| {
+                        if data.invalid_polygon_ids.contains(&(polygon_index as u32)) {
+                            -1
+                        } else {
+                            polygon_index
+                        }
+                    })
+                    .collect(),
+            };
+            let mut mesh_merger = MeshMerger {
+                mesh_vertices: data.mesh_vertices.clone(),
+                mesh_polygons: data.mesh_polygons.clone(),
+                polygon_unions: union_find,
+            };
+            mesh_merger.my_merge();
+            dbg!(&mesh_merger);
+
+            *data = ConvexPolygonsMeshData::from(&mesh_merger);
+        }
     }
 }
