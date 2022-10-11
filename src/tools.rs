@@ -20,7 +20,7 @@ pub fn triangulate(navmesh: &PAMesh) -> Vec<u32> {
 }
 
 pub fn create_grid_trimesh(width: u32, height: u32, spacing: f32) -> TriangleMesh {
-    let to_index = |x: u32, y: u32| y * height + x;
+    let to_index = |x: u32, y: u32| y * width + x;
     let positions: Vec<Vec2> = (0..height)
         .flat_map(|y| {
             (0..width).map(move |x| {

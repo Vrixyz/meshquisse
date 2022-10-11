@@ -10,7 +10,7 @@ pub struct UnionFind {
 }
 
 impl UnionFind {
-    fn new(polygon_count: i32) -> Self {
+    pub fn new(polygon_count: i32) -> Self {
         Self {
             parent: (0..polygon_count).collect(),
         }
@@ -235,6 +235,12 @@ impl MeshMerger {
         }
         true
     }
+    pub fn is_polygon_merged_into_other(&self, polygon_index: u32) -> bool {
+        if self.polygon_unions.find(polygon_index as i32) != polygon_index as i32 {
+            return true;
+        }
+        false
+    }
     /// Can polygon x merge with the polygon adjacent to the given edge index ?
     ///
     /// Try to merge `self.mesh_polygons[polygon_to_index]` with `self.mesh_polygons].polygon[vertex_to_index]`
@@ -248,7 +254,7 @@ impl MeshMerger {
         polygon_to_index: i32,
         vertex_to_index: u32,
     ) -> Result<MergeInfo, ImpossibleMergeInfo> {
-        if self.polygon_unions.find(polygon_to_index) != polygon_to_index {
+        if self.is_polygon_merged_into_other(polygon_to_index as u32) {
             return Err(ImpossibleMergeInfo::ToMergedIntoOther);
         }
         // The polygon we want to modify to be the merge result

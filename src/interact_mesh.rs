@@ -196,5 +196,6 @@ fn update_navmesh<MeshData: IntoPAMesh + Component>(
 ) {
     for (mut update, mesh_data) in q_updated_meshes.iter_mut() {
         update.navmesh = mesh_data.to_pa_mesh();
+        dbg!(&update.navmesh);
     }
 }

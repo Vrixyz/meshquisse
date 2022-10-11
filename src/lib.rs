@@ -106,7 +106,7 @@ fn cast_ray_pathfinding(
         path_to_display.steps.clear();
         return;
     }
-    if !buttons.just_pressed(MouseButton::Left) {
+    if !buttons.just_pressed(MouseButton::Middle) {
         return;
     }
     let navmesh = navmesh.iter().next();
