@@ -189,7 +189,7 @@ fn update_vertices_position<MeshData: UpdateVertex + Component>(
 ) {
     for (parent, vertex, transform) in q_changed_vertices.iter() {
         if let Ok(mut mesh_data_to_edit) = q_parent_mesh_data.get_mut(parent.get()) {
-            mesh_data_to_edit.update_vertex(dbg!(vertex.vertex_id), transform.translation);
+            mesh_data_to_edit.update_vertex(vertex.vertex_id, transform.translation);
         }
     }
 }

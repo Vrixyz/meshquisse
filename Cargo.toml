@@ -12,6 +12,7 @@ bevy = "0.8"
 bevy_polyline = "0.3"
 bevy_transform_gizmo = "*"
 bevy_mod_picking = "*"
+bevy_flycam = "*"
 
 [profile.dev]
 opt-level = 0

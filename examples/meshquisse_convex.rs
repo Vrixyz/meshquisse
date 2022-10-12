@@ -1,6 +1,7 @@
-use std::io::Read;
+use std::{io::Read, time::SystemTime};
 
 use bevy::{pbr::wireframe::WireframePlugin, prelude::*};
+use bevy_flycam::{FlyCam, NoCameraPlayerPlugin};
 use meshquisse::{
     interact_mesh::{EditableMesh, InteractMeshPlugin, ShowAndUpdateMesh, UpdateNavMesh},
     meshmerger::{MeshMerger, UnionFind},
@@ -18,11 +19,18 @@ struct ToolPlugin;
 impl Plugin for ToolPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(MeshquissePlugin)
+            .add_plugin(NoCameraPlayerPlugin)
             //.add_plugin(WireframePlugin)
             .add_plugin(InteractMeshPlugin::<ConvexPolygonsMeshData>::default())
             .add_startup_system(setup)
+            .add_system(update_camera)
             .add_system(save_mesh)
             .add_system(try_merge_1);
+    }
+}
+fn update_camera(mut commands: Commands, cam: Query<Entity, Added<MainCamera>>) {
+    for e in cam.iter() {
+        commands.entity(e).insert(FlyCam);
     }
 }
 
@@ -45,9 +53,16 @@ fn setup(mut commands: Commands) {
         mesh_polygons: convex_data.mesh_polygons,
         polygon_unions: UnionFind::new(nb_polygons as i32),
     };
+    let start = SystemTime::now();
     //dbg!(&mesh_merger);
-    //mesh_merger.my_merge();
+    mesh_merger.my_merge();
+    let end = SystemTime::now();
+    let elapsed = end.duration_since(start);
 
+    println!(
+        "Merging took around {}s",
+        elapsed.unwrap_or_default().as_secs_f32()
+    );
     let convex_data = ConvexPolygonsMeshData::from(&mesh_merger);
 
     commands

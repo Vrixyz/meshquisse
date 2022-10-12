@@ -360,6 +360,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_flycam"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2cc43e173fe1bba8c19cff2b45e407e9c3a32517360534d2d6317e52eb86d74"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "bevy_gilrs"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2063,6 +2072,7 @@ name = "meshquisse"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_flycam",
  "bevy_mod_picking",
  "bevy_polyline",
  "bevy_rapier3d",

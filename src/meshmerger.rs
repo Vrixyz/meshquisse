@@ -434,11 +434,11 @@ impl MeshMerger {
         let mut merge_count = 0;
         let mut progress = 0;
         while check_new_merge {
-            //if progress % 100 == 10 {
-            println!("sorting {} polygons", sorted_area_polygon_indexes.len());
-            sorted_area_polygon_indexes
-                .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-            //}
+            if progress % 100 == 10 {
+                println!("sorting {} polygons", sorted_area_polygon_indexes.len());
+                sorted_area_polygon_indexes
+                    .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+            }
             check_new_merge = false;
             'search_merge: for (polygon_to_index, _) in sorted_area_polygon_indexes.iter() {
                 progress += 1;
