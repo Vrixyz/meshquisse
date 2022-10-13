@@ -96,17 +96,3 @@ This represents this mesh:
 3         2
 
 X denotes a point of the polygon.
-
-
-0         1
- X-------X
- |      /|
- | 0   / |
- |    /  |
- |   /   |
- |  /    |
- | /   1 |
- |/      |
- X-------X
-3         2
-

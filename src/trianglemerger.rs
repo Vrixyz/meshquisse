@@ -1,4 +1,7 @@
-use std::io::{self, BufRead};
+use std::{
+    collections::HashSet,
+    io::{self, BufRead},
+};
 
 use bevy::prelude::Vec2;
 
@@ -34,7 +37,6 @@ impl UnionFind {
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct Vertex {
     pub p: Vec2,
-    pub num_polygons: u32,
     pub polygons: Vec<i32>,
 }
 
@@ -109,6 +111,7 @@ pub struct MeshMerger {
     pub mesh_polygons: Vec<Polygon>,
     pub polygon_unions: UnionFind,
 }
+
 impl MeshMerger {
     /// Actually returns double the area of the polygon...
     /// Assume that mesh_vertices is populated and is valid.
@@ -121,6 +124,61 @@ impl MeshMerger {
             );
         }
         out
+    }
+    pub fn to_mesh2_format(&self) -> String {
+        use std::fmt::Write as _;
+        let mut res = String::new();
+        res.push_str("mesh\n2\n");
+        let nb_vertices = self.mesh_vertices.len();
+        let nb_polygons = self.mesh_polygons.len();
+        let _ = writeln!(res, "{nb_vertices} {nb_polygons}");
+        for v in self.mesh_vertices.iter() {
+            let _ = writeln!(
+                res,
+                "{} {} {}{}",
+                v.p.x,
+                v.p.y,
+                v.polygons.len(),
+                v.polygons
+                    .iter()
+                    .map(|p| {
+                        let mut number = " ".to_string();
+                        number.push_str(&p.to_string());
+                        number
+                    })
+                    .collect::<String>()
+            );
+        }
+        for p in self.mesh_polygons.iter() {
+            let _ = writeln!(
+                res,
+                "{}{} {}{}",
+                p.vertices.len(),
+                p.vertices
+                    .iter()
+                    .map(|v| {
+                        let mut number = " ".to_string();
+                        number.push_str(&v.to_string());
+                        number
+                    })
+                    .collect::<String>(),
+                p.polygons.len(),
+                p.polygons
+                    .iter()
+                    // shift data forward 1 place, to respect mesh format
+                    .cycle()
+                    .skip(p.polygons.len() - 1)
+                    .take(p.polygons.len())
+                    //
+                    .map(|neighbour| {
+                        let mut number = " ".to_string();
+                        number.push_str(&neighbour.to_string());
+                        number
+                    })
+                    .collect::<String>()
+            );
+        }
+        res
     }
     pub fn from_bytes(bytes: &[u8]) -> MeshMerger {
         let mut list_data = Vec::<u32>::default();
@@ -160,12 +218,11 @@ impl MeshMerger {
             let x = values.next().unwrap().parse().unwrap();
             let y = values.next().unwrap().parse().unwrap();
             // Step: Read vertex's neighbour polygons
-            let neigbours = values.next().unwrap().parse().unwrap();
+            let neigbours: i32 = values.next().unwrap().parse().unwrap();
             if neigbours < 2 {
                 panic!("vertex with less than 2 neigbours");
             }
             vertex.p = Vec2::new(x, y);
-            vertex.num_polygons = neigbours;
             let neighbour_values: Vec<i32> = values.map(|v| v.parse().unwrap()).collect();
             if neighbour_values.len() != neigbours as usize {
                 panic!("read more neighbours than defined.");
@@ -209,8 +266,10 @@ impl MeshMerger {
                 }
                 polygon.polygons.push(polygon_index);
             }
+            // shift data back 1 place, to respect mesh format
             polygon.polygons.push(polygon.polygons[0]);
             polygon.polygons.remove(0);
+            //
             polygon.area = MeshMerger::get_area(&mesh_vertices, &polygon.vertices);
             assert!(polygon.area > 0f32, "Polygon has an area inferior to 0");
         }
@@ -265,7 +324,7 @@ impl MeshMerger {
         let polygon_from_index = self
             .polygon_unions
             .find(polygon_to.polygons[vertex_to_index as usize]);
-        if polygon_from_index == -1 {
+        if polygon_from_index == -1 || polygon_from_index == polygon_to_index {
             return Err(ImpossibleMergeInfo::NoNeighbour);
         }
         // The polygon we want to merge from
@@ -310,7 +369,7 @@ impl MeshMerger {
         );
         debug_assert!(
             from_vertice_2.1 == to_vertice_2.1,
-            "wrong second vertex correspondance: {}, {}",
+            "wrong polygons to:{polygon_to_index} ; from {polygon_from_index} : second vertex correspondance: {}, {}",
             polygon_to_index.to_string(),
             vertex_to_index.to_string()
         );
@@ -374,6 +433,12 @@ impl MeshMerger {
             .len();
         let len_v_to = self.mesh_polygons[polygon_to_index as usize].vertices.len();
 
+        let real_vertex1 = self.mesh_polygons[merge_info.polygon_to as usize].vertices
+            [merge_info.to_index as usize] as usize;
+        let real_vertex2 = self.mesh_polygons[merge_info.polygon_to as usize].vertices
+            [((merge_info.to_index + 1) % len_v_to as u32) as usize]
+            as usize;
+
         self.mesh_polygons[polygon_to_index as usize].vertices = self.mesh_polygons
             [polygon_to_index as usize]
             .vertices
@@ -408,16 +473,52 @@ impl MeshMerger {
             )
             .copied()
             .collect();
-
+        // new to update vertices
+        println!("update v1 {real_vertex1}");
+        self.clear_vertex(real_vertex2, merge_info);
+        println!("update v2 {real_vertex2}");
+        self.clear_vertex(real_vertex1, merge_info);
+        //
         self.mesh_polygons[polygon_to_index as usize].area +=
             self.mesh_polygons[merge_info.polygon_from as usize].area;
 
         self.mesh_polygons[polygon_to_index as usize].num_traversable +=
             self.mesh_polygons[merge_info.polygon_from as usize].num_traversable;
         self.mesh_polygons[polygon_to_index as usize].num_traversable -= 2;
-
         self.polygon_unions
             .merge(polygon_to_index, merge_info.polygon_from);
+    }
+
+    fn clear_vertex(&mut self, real_vertex: usize, merge_info: &MergeInfo) {
+        let p_from = self.polygon_unions.find(merge_info.polygon_from as i32);
+        println!(
+            "remove polygon_from {} ({}) from vertex {}",
+            merge_info.polygon_from, p_from, real_vertex
+        );
+        self.mesh_vertices[real_vertex].polygons = self.mesh_vertices[real_vertex]
+            .polygons
+            .iter()
+            .filter_map(|p| {
+                let unioned_p = self.polygon_unions.find(*p);
+                let is_polygon_from = *p == p_from;
+                println!("{is_polygon_from} ; {}({}) == {}", *p, unioned_p, p_from);
+                if !is_polygon_from {
+                    Some(unioned_p)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let mut already_seen = Vec::new();
+        self.mesh_vertices[real_vertex]
+            .polygons
+            .retain(|item| match already_seen.contains(item) {
+                true => *item != -1,
+                _ => {
+                    already_seen.push(*item);
+                    true
+                }
+            })
     }
 
     pub fn my_merge(&mut self) {
@@ -434,12 +535,12 @@ impl MeshMerger {
         let mut merge_count = 0;
         let mut progress = 0;
         while check_new_merge {
+            check_new_merge = false;
             if progress % 100 == 10 {
                 println!("sorting {} polygons", sorted_area_polygon_indexes.len());
                 sorted_area_polygon_indexes
                     .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
             }
-            check_new_merge = false;
             'search_merge: for (polygon_to_index, _) in sorted_area_polygon_indexes.iter() {
                 progress += 1;
                 if progress % 1000 == 100 {
@@ -452,7 +553,7 @@ impl MeshMerger {
                         self.can_merge(*polygon_to_index as i32, merge_index as u32)
                     {
                         self.merge(&merge_info);
-                        // println!("merged {merge_info:?}, {merge_count} merged so far.");
+                        //println!("merged {merge_info:?}, {merge_count} merged so far.");
                         check_new_merge = true;
                         self.is_correct();
                         merge_count += 1;
@@ -462,13 +563,67 @@ impl MeshMerger {
             }
         }
     }
+    /// Call that after a merge to remove unused polygons
+    /// Vertices are kept, but ideally they should be removed too..
+    pub fn remove_unused(&mut self) {
+        let mut valid_polygons = HashSet::<usize>::new();
+        for p in self.polygon_unions.parent.iter() {
+            if *p == -1 {
+                continue;
+            }
+            let p = *p as usize;
+            valid_polygons.insert(p);
+        }
+        // vec to hold amount of shifted position due to removed polygons below current index.
+        let mut shift_values = vec![0; self.mesh_polygons.len()];
+
+        let mut shifted_amount = 0;
+        self.mesh_polygons = self
+            .mesh_polygons
+            .iter()
+            .enumerate()
+            .filter_map(|(index, p)| {
+                if valid_polygons.contains(&index) {
+                    shift_values[index] = shifted_amount;
+                    let mut p = p.clone();
+                    p.polygons = p
+                        .polygons
+                        .iter()
+                        .map(|p| self.polygon_unions.find(*p))
+                        .collect();
+                    Some(p)
+                } else {
+                    shifted_amount += 1;
+                    shift_values[index] = shifted_amount;
+                    None
+                }
+            })
+            .collect::<Vec<Polygon>>();
+
+        for v in &mut self.mesh_vertices {
+            v.polygons.iter_mut().for_each(|p| {
+                *p = self.polygon_unions.find(*p);
+                if *p != -1 {
+                    *p -= shift_values[*p as usize];
+                }
+            })
+        }
+        for v in &mut self.mesh_polygons {
+            v.polygons.iter_mut().for_each(|p| {
+                *p = self.polygon_unions.find(*p);
+                if *p != -1 {
+                    *p -= shift_values[*p as usize];
+                }
+            })
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::io::Read;
 
-    use crate::meshmerger::MergeInfo;
+    use crate::trianglemerger::MergeInfo;
 
     use super::{ImpossibleMergeInfo, MeshMerger};
 
@@ -551,7 +706,7 @@ mod tests {
         mesh_merger.my_merge();
         assert_eq!(
             mesh_merger.mesh_polygons[0],
-            crate::meshmerger::Polygon {
+            crate::trianglemerger::Polygon {
                 num_traversable: 0,
                 area: 4.5,
                 vertices: vec![3, 0, 1, 2,],
@@ -589,7 +744,7 @@ mod tests {
         mesh_merger.my_merge();
         assert_eq!(
             mesh_merger.mesh_polygons[2],
-            crate::meshmerger::Polygon {
+            crate::trianglemerger::Polygon {
                 num_traversable: 0,
                 area: 5.25,
                 vertices: vec![1, 2, 4, 3, 0,],

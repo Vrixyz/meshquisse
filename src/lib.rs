@@ -1,8 +1,8 @@
 pub mod interact_mesh;
-pub mod meshmerger;
+pub mod mesh_data;
 pub mod navmesh;
-pub mod polygon_mesh_data;
 pub mod tools;
+pub mod trianglemerger;
 
 use bevy::{
     input::keyboard::KeyboardInput, math::Vec3Swizzles, pbr::wireframe::WireframePlugin, prelude::*,
@@ -11,8 +11,8 @@ use bevy::{
 use bevy_polyline::prelude::*;
 use bevy_rapier3d::prelude::*;
 use interact_mesh::InteractMeshPlugin;
+use mesh_data::*;
 use navmesh::NavMeshPlugin;
-use polygon_mesh_data::TriangleMeshData;
 
 pub struct MeshquissePlugin;
 
@@ -121,9 +121,10 @@ fn cast_ray_pathfinding(
                 info!("point not in mesh");
                 return;
             }
-            let path = navmesh.navmesh.path(*last_pos, position.xz());
-            for p in path.path {
-                path_to_display.steps.push(p);
+            if let Some(path) = navmesh.navmesh.path(*last_pos, position.xz()) {
+                for p in path.path {
+                    path_to_display.steps.push(p);
+                }
             }
         } else {
             path_to_display.steps.push(position.xz());

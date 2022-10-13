@@ -56,19 +56,15 @@ pub fn navmesh_from_trimesh(triangles_mesh: &TriangleMesh) -> PAMesh {
     let mut vertices: Vec<Vertex> = triangles_mesh
         .positions
         .iter()
-        .map(|position| Vertex {
-            coords: *position,
-            is_corner: true,
-            polygons: vec![],
-        })
+        .map(|position| Vertex::new(*position, vec![]))
         .collect();
     let polygons: Vec<_> = (0..triangles_mesh.indices.len() / 3)
         .map(|i| {
             let i = i * 3;
             let indexes = vec![
-                triangles_mesh.indices[i] as usize,
-                triangles_mesh.indices[i + 1] as usize,
-                triangles_mesh.indices[i + 2] as usize,
+                triangles_mesh.indices[i],
+                triangles_mesh.indices[i + 1],
+                triangles_mesh.indices[i + 2],
             ];
             Polygon::new(indexes, false)
         })
@@ -79,7 +75,7 @@ pub fn navmesh_from_trimesh(triangles_mesh: &TriangleMesh) -> PAMesh {
             .enumerate()
             .filter_map(|(polygon_index, p)| {
                 p.vertices
-                    .contains(&vertex_index)
+                    .contains(&(vertex_index as u32))
                     .then_some(polygon_index as isize)
             })
             .collect::<Vec<isize>>();
@@ -159,51 +155,15 @@ mod test {
         assert_eq!(
             navmesh.vertices,
             vec![
-                Vertex {
-                    coords: Vec2::new(0.0, 0.0,),
-                    polygons: vec![0,],
-                    is_corner: true,
-                },
-                Vertex {
-                    coords: Vec2::new(10.0, 0.0,),
-                    polygons: vec![0, 1, 2,],
-                    is_corner: true,
-                },
-                Vertex {
-                    coords: Vec2::new(20.0, 0.0,),
-                    polygons: vec![2, 3,],
-                    is_corner: true,
-                },
-                Vertex {
-                    coords: Vec2::new(0.0, 10.0,),
-                    polygons: vec![0, 1, 4,],
-                    is_corner: true,
-                },
-                Vertex {
-                    coords: Vec2::new(10.0, 10.0,),
-                    polygons: vec![1, 2, 3, 4, 5, 6,],
-                    is_corner: true,
-                },
-                Vertex {
-                    coords: Vec2::new(20.0, 10.0,),
-                    polygons: vec![3, 6, 7,],
-                    is_corner: true,
-                },
-                Vertex {
-                    coords: Vec2::new(0.0, 20.0,),
-                    polygons: vec![4, 5,],
-                    is_corner: true,
-                },
-                Vertex {
-                    coords: Vec2::new(10.0, 20.0,),
-                    polygons: vec![5, 6, 7,],
-                    is_corner: true,
-                },
-                Vertex {
-                    coords: Vec2::new(20.0, 20.0,),
-                    polygons: vec![7,],
-                    is_corner: true,
-                },
+                Vertex::new(Vec2::new(0.0, 0.0,), vec![0,]),
+                Vertex::new(Vec2::new(10.0, 0.0,), vec![0, 1, 2,]),
+                Vertex::new(Vec2::new(20.0, 0.0,), vec![2, 3,],),
+                Vertex::new(Vec2::new(0.0, 10.0,), vec![0, 1, 4,],),
+                Vertex::new(Vec2::new(10.0, 10.0,), vec![1, 2, 3, 4, 5, 6,],),
+                Vertex::new(Vec2::new(20.0, 10.0,), vec![3, 6, 7,],),
+                Vertex::new(Vec2::new(0.0, 20.0,), vec![4, 5,],),
+                Vertex::new(Vec2::new(10.0, 20.0,), vec![5, 6, 7,],),
+                Vertex::new(Vec2::new(20.0, 20.0,), vec![7,],),
             ]
         );
         assert_eq!(
