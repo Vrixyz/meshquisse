@@ -54,16 +54,16 @@ fn setup(mut commands: Commands) {
         mesh_polygons: convex_data.mesh_polygons,
         polygon_unions: UnionFind::new(nb_polygons as i32),
     };
+    /*
     let start = SystemTime::now();
-    //dbg!(&mesh_merger);
-    //mesh_merger.my_merge();
+    mesh_merger.my_merge();
     let end = SystemTime::now();
     let elapsed = end.duration_since(start);
 
     println!(
         "Merging took around {}s",
         elapsed.unwrap_or_default().as_secs_f32()
-    );
+    );*/
     let convex_data = ConvexPolygonsMeshData::from(&mesh_merger);
 
     commands

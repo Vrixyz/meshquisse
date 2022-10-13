@@ -20,19 +20,19 @@ fn main() {
     let mut mesh_merger = MeshMerger::from_bytes(&buffer);
     let end = SystemTime::now();
     let elapsed = end.duration_since(start);
-    println!(
+    /*println!(
         "Reading took around {}s",
         elapsed.unwrap_or_default().as_secs_f32()
-    );
+    );*/
     let start = SystemTime::now();
     mesh_merger.my_merge();
     mesh_merger.remove_unused();
     // TODO: remove unused polygons (and vertices)
     let end = SystemTime::now();
     let elapsed = end.duration_since(start);
-    println!(
+    /*println!(
         "Merging took around {}s",
         elapsed.unwrap_or_default().as_secs_f32()
-    );
+    );*/
     println!("{}", mesh_merger.to_mesh2_format());
 }

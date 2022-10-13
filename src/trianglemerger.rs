@@ -474,9 +474,7 @@ impl MeshMerger {
             .copied()
             .collect();
         // new to update vertices
-        println!("update v1 {real_vertex1}");
         self.clear_vertex(real_vertex2, merge_info);
-        println!("update v2 {real_vertex2}");
         self.clear_vertex(real_vertex1, merge_info);
         //
         self.mesh_polygons[polygon_to_index as usize].area +=
@@ -491,17 +489,12 @@ impl MeshMerger {
 
     fn clear_vertex(&mut self, real_vertex: usize, merge_info: &MergeInfo) {
         let p_from = self.polygon_unions.find(merge_info.polygon_from as i32);
-        println!(
-            "remove polygon_from {} ({}) from vertex {}",
-            merge_info.polygon_from, p_from, real_vertex
-        );
         self.mesh_vertices[real_vertex].polygons = self.mesh_vertices[real_vertex]
             .polygons
             .iter()
             .filter_map(|p| {
                 let unioned_p = self.polygon_unions.find(*p);
                 let is_polygon_from = *p == p_from;
-                println!("{is_polygon_from} ; {}({}) == {}", *p, unioned_p, p_from);
                 if !is_polygon_from {
                     Some(unioned_p)
                 } else {
@@ -537,7 +530,7 @@ impl MeshMerger {
         while check_new_merge {
             check_new_merge = false;
             if progress % 100 == 10 {
-                println!("sorting {} polygons", sorted_area_polygon_indexes.len());
+                //println!("sorting {} polygons", sorted_area_polygon_indexes.len());
                 sorted_area_polygon_indexes
                     .sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
             }
@@ -545,7 +538,7 @@ impl MeshMerger {
                 progress += 1;
                 if progress % 1000 == 100 {
                     //println!("polygon {polygon_to_index}/{}",sorted_area_polygon_indexes.len());
-                    println!("{merge_count} merged so far.");
+                    //println!("{merge_count} merged so far.");
                 }
                 let polygon = &self.mesh_polygons[*polygon_to_index];
                 for merge_index in 0..polygon.vertices.len() {
