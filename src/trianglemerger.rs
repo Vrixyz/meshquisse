@@ -616,6 +616,7 @@ impl MeshMerger {
                 }
             })
         }
+        self.polygon_unions = UnionFind::new(self.mesh_polygons.len() as i32);
     }
 }
 

@@ -36,7 +36,7 @@ fn update_camera(mut commands: Commands, cam: Query<Entity, Added<MainCamera>>) 
 
 fn setup(mut commands: Commands) {
     ///*
-    let mut file = std::fs::File::open("assets/meshes/arena_my_merge.mesh").unwrap();
+    let mut file = std::fs::File::open("assets/meshes/arena.mesh").unwrap();
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).unwrap();
     let mut mesh_merger = MeshMerger::from_bytes(&buffer);
@@ -90,13 +90,7 @@ fn try_merge_1(
             let nb_polygons = data.mesh_polygons.len();
             let union_find = UnionFind {
                 parent: (0i32..(nb_polygons as i32))
-                    .map(|polygon_index| {
-                        if data.invalid_polygon_ids.contains(&(polygon_index as u32)) {
-                            -1
-                        } else {
-                            polygon_index
-                        }
-                    })
+                    .map(|polygon_index| polygon_index)
                     .collect(),
             };
             let mut mesh_merger = MeshMerger {
@@ -105,6 +99,7 @@ fn try_merge_1(
                 polygon_unions: union_find,
             };
             mesh_merger.my_merge();
+            mesh_merger.remove_unused();
             dbg!(&mesh_merger);
 
             *data = ConvexPolygonsMeshData::from(&mesh_merger);
