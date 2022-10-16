@@ -16,6 +16,7 @@ bevy_mod_picking = "*"
 [dev-dependencies]
 clap = { version = "4.0", features = ["derive"] }
 bevy_flycam = "*"
+parry2d = "*"
 
 [profile.dev]
 opt-level = 0
