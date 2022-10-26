@@ -24,7 +24,7 @@ https://user-images.githubusercontent.com/2290685/194018684-093299ca-8e81-411a-a
 
 - [x] polygon navmesh into bevy mesh
 - [x] modular design to render a bevy mesh, update in runtime or update a navmesh optionally 
-- [ ] use convex polygons rather than triangles
+- [x] use convex polygons rather than triangles
 - [ ] code clean
 
 ## Tech talk
