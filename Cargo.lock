@@ -2121,6 +2121,7 @@ dependencies = [
  "bevy_rapier3d",
  "bevy_transform_gizmo",
  "clap",
+ "parry2d",
  "polyanya",
 ]
 
@@ -2586,6 +2587,27 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-sys",
+]
+
+[[package]]
+name = "parry2d"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee29895c34e7dae094c8ea355af4f6fb3f3ab6b76ea037b49bc51bf5972d2464"
+dependencies = [
+ "approx",
+ "arrayvec",
+ "bitflags",
+ "downcast-rs",
+ "either",
+ "nalgebra",
+ "num-derive",
+ "num-traits",
+ "rustc-hash",
+ "simba",
+ "slab",
+ "smallvec",
+ "spade",
 ]
 
 [[package]]
